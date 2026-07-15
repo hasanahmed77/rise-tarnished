@@ -1,0 +1,52 @@
+\documentclass[conference]{IEEEtran}
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+
+\begin{document}
+
+\title{Rise, Tarnished}
+
+\author{
+\IEEEauthorblockN{1\textsuperscript{st} Author Name, 2\textsuperscript{nd} Author Name, 3\textsuperscript{rd} Author Name}
+\IEEEauthorblockA{Department of Computer Science and Engineering \\
+North South University}
+}
+
+\maketitle
+
+\section{Introduction}
+"Rise, Tarnished" is a two-dimensional, single-player video game inspired by Elden Ring. It focuses solely on boss fights, where split-second decisions are the difference between defeat and victory. The game is linear -- players can only progress by defeating the boss currently blocking their path. Defeating bosses earns runes, which can be spent to upgrade weapons or character stats such as vitality, health, dexterity, and intelligence. Each boss has its own set of special combos, and AI tracks how the player has been fighting so the boss can counter that playstyle on the next attempt. So, no same tactic twice! The game will be web-based and will include an authentication system and other basic UI/UX features.
+
+\section{Game Design}
+The player signs in and clears four bosses in a fixed order -- no boss select:
+\begin{enumerate}
+\item \textbf{Stormveil Castle} -- Boss: \emph{Margit, the Fell Omen}
+\item \textbf{Redmane Castle, Caelid} -- Boss: \emph{Starscourge Radahn}
+\item \textbf{Miquella's Haligtree} -- Boss: \emph{Malenia, Blade of Miquella}
+\item \textbf{Elden Throne} -- Boss: \emph{Radagon and the Elden Beast}
+\end{enumerate}
+Each kill grants runes and loot, unlocking the next region. Runes buy points in vitality, health, dexterity, and intelligence; vitality and health raise survivability and heavy-weapon damage, dexterity scales fast light weapons, and intelligence scales a ranged/sorcery option -- so build choice changes how each fight is played.
+
+\section{Features}
+\begin{enumerate}
+\item \textbf{Adaptive Boss AI:} Bosses read the player's recent attack/dodge/heal pattern and shift tactics in real time -- e.g., delayed strikes punish dodge-spam, unblockable grabs punish turtling -- via a behavior-weighted finite state machine.
+\item \textbf{Vitality/Health/Dexterity/Intelligence Build System:} Level-up points change weapon scaling and survivability, so the same boss plays differently depending on build.
+\item \textbf{Per-Attempt Move Variation:} Boss attack sequencing is reweighted each attempt within fairness constraints, so no fight plays identically twice.
+\item \textbf{Post-Death AI Breakdown:} After each death, an LLM call turns the attempt's input/combat log into a short, specific explanation of what killed the player.
+\end{enumerate}
+
+\section{Technology Stack}
+\begin{itemize}
+\item \textbf{Frontend / Game Shell:} Next.js (menus, character sheet, region progression, run statistics)
+\item \textbf{Game Engine:} Phaser.js (combat physics, animation, hitbox/hurtbox detection)
+\item \textbf{Authentication:} Supabase Auth, Google OAuth as the sole sign-in method
+\item \textbf{Real-Time AI:} In-engine finite state machine for frame-level boss decisions (LLM latency is unsuitable for real-time combat reactions)
+\item \textbf{Asynchronous AI:} OpenAI API for post-death analysis and per-attempt move-sequencing weights
+\item \textbf{Data Storage:} Supabase (PostgreSQL), for character stats, weapon/build data, region progress, and attempt logs
+\item \textbf{Hosting:} Vercel (application), Supabase (managed database and auth)
+\end{itemize}
+
+\end{document}
