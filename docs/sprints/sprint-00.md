@@ -15,8 +15,10 @@
 - [x] Initial commit; repo pushed to GitHub
 - [x] Branch protection on `main`; GitHub Project board (columns per SDLC §2)
 - [ ] Backlog seeded as GitHub Issues (Sprint 1 candidates)
-- [ ] Walking skeleton: Next.js + Phaser blank canvas, mount/unmount verified
-      (ADR-0001 follow-up: React strict-mode double-mount check)
+- [x] Walking skeleton: Next.js + Phaser blank canvas, mount/unmount verified
+      (ADR-0001 follow-up: React strict-mode double-mount check — passed,
+      1 canvas after double-mount; registry-set-before-create() ordering
+      verified against Phaser source in code review)
 - [ ] CI: lint + typecheck + unit (Vitest, 1 trivial test) + build, green
 - [ ] Pre-commit hooks (format + lint)
 

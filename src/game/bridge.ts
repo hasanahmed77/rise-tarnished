@@ -49,7 +49,13 @@ class TypedEmitter<Events extends object> {
   }
 
   emit<K extends keyof Events>(event: K, payload: Events[K]): void {
-    this.handlers.get(event)?.forEach((h) => (h as Handler<Events[K]>)(payload));
+    const set = this.handlers.get(event);
+    if (!set) return;
+    // Snapshot before iterating so a handler that unsubscribes (or disposes
+    // the bridge) mid-emit can't silently skip the remaining handlers.
+    for (const h of [...set]) {
+      (h as Handler<Events[K]>)(payload);
+    }
   }
 
   removeAll(): void {
