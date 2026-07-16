@@ -348,6 +348,40 @@ describe('poise & stagger', () => {
     expect(after.action?.id).toBe('light');
   });
 
+  it('staggers on EXACTLY reaching the threshold (>= convention, matches posture)', () => {
+    const primed = { ...createPlayerState(), poiseDamage: THRESHOLD - 14 };
+    const r = resolveIncomingHit(primed, { hp: 0, poise: 14 }, BUILD); // lands exactly on 25
+    expect(r.staggered).toBe(true);
+  });
+
+  it('never shortens an ongoing stagger with a fresh shorter one', () => {
+    // Guard-broken player (40-tick stagger) takes poise-breaching hits mid-lockout.
+    let s = { ...createPlayerState(), staggerTicks: GUARD_BREAK_STAGGER_TICKS };
+    s = resolveIncomingHit(s, { hp: 5, poise: 14 }, BUILD).state;
+    const r = resolveIncomingHit(s, { hp: 5, poise: 14 }, BUILD); // breach → 30-tick stagger
+    expect(r.staggered).toBe(true);
+    // The remaining 40 must win over the fresh 30 — being hit can't speed recovery.
+    expect(r.state.staggerTicks).toBe(GUARD_BREAK_STAGGER_TICKS);
+  });
+
+  it('pauses regen during block STARTUP too (guard rising counts as blocking)', () => {
+    // Regen-eligible, missing stamina, then tap block: the 3 startup ticks
+    // must not regen (spec §3: "paused while blocking").
+    // The press tick itself may regen once (the guard isn't rising when that
+    // tick begins); every startup tick after it must be frozen.
+    const s = { ...createPlayerState(), stamina: 50 };
+    const afterPress = step(s, press({ block: true }), CTX).state;
+    expect(afterPress.action).toMatchObject({ id: 'block', phase: 'startup' });
+    const atStartup = afterPress.stamina;
+
+    const hold = press({ block: true });
+    let cur = afterPress;
+    for (let i = 0; i < FRAME_DATA.block.startup; i++) {
+      cur = step(cur, hold, CTX).state;
+      expect(cur.stamina).toBe(atStartup); // frozen through all of startup
+    }
+  });
+
   it('takes full damage while staggered (no defense available)', () => {
     let s = createPlayerState();
     s = resolveIncomingHit(s, { hp: 5, poise: 14 }, BUILD).state;

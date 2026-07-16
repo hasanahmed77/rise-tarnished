@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import type { GameBridge } from '../bridge';
+import { BASE_MAX_HP, BASE_MAX_STAMINA } from '../combat/frameData';
 import {
   createPlayerState,
   isBlocking,
@@ -207,8 +208,8 @@ export class CombatScene extends Phaser.Scene {
 
     this.facingPip.x = s.x + (s.facing === 1 ? PLAYER_W / 2 - 4 : -PLAYER_W / 2 + 4);
 
-    this.hpBar.width = 200 * (s.hp / 100);
-    this.staminaBar.width = 200 * (s.stamina / 100);
+    this.hpBar.width = 200 * (s.hp / BASE_MAX_HP);
+    this.staminaBar.width = 200 * (s.stamina / BASE_MAX_STAMINA);
     const mode = isStaggered(s)
       ? `STAGGERED (${s.staggerTicks})`
       : a

@@ -64,12 +64,18 @@ Dexterity extends the i-frame window (§6).
 
 - Every entity has **poise** — resistance to being interrupted.
 - Attacks deal **poise damage** alongside HP damage. When accumulated poise
-  damage exceeds the target's poise threshold, they're **staggered** (animation
-  interrupted, brief vulnerability). Poise damage decays 10/s.
-- Bosses have a second, slower meter: **posture**. Filling it (heavy attacks,
-  well-timed jumps over sweeps, punishing recovery) triggers a **posture
-  break**: the boss collapses for a 90f **critical window** where the player
-  lands a high-damage critical hit. This is the skill-expression reward loop.
+  damage reaches the target's poise threshold (**base 20**, +0.5/vitality pt,
+  see §6), they're **staggered**: animation interrupted, all input locked for
+  **30f**, fully vulnerable. The break consumes the accumulator. Poise damage
+  decays 10/s. A guard break (§4) staggers for **40f**. Overlapping staggers
+  never shorten one another — the longer remaining lockout wins.
+- Bosses have a second, slower meter: **posture** (cap **100**, decays
+  **3/s** — slow enough that sustained pressure matters). Filling it (heavy
+  attacks, well-timed jumps over sweeps, punishing recovery) triggers a
+  **posture break**: the boss collapses for a 90f **critical window** where
+  the player lands a high-damage critical hit, then the meter resets to zero.
+  Posture damage during an open window is ignored (the collapsed boss takes
+  HP damage instead). This is the skill-expression reward loop.
 
 ## 6. Stats & builds
 

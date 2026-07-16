@@ -135,6 +135,15 @@ export function isBlocking(state: PlayerCombatState): boolean {
   return state.action?.id === 'block' && state.action.phase === 'hold';
 }
 
+/** True from the moment the guard starts rising until it starts dropping.
+ * Wider than isBlocking(): includes startup, because spec §3 pauses stamina
+ * regen "while blocking" — raising the guard counts; releasing it (recovery)
+ * does not. Distinct predicates because damage absorption and regen pause are
+ * different questions with different windows. */
+function isGuardEngaged(state: PlayerCombatState): boolean {
+  return state.action?.id === 'block' && state.action.phase !== 'recovery';
+}
+
 function phaseLengthFor(
   id: ActionId,
   phase: Phase,
@@ -266,7 +275,7 @@ export function step(prev: PlayerCombatState, input: CombatInput, ctx: StepConte
   // after the post-spend delay, except while the block stance is up.
   state.poiseDamage = Math.max(0, state.poiseDamage - POISE_DECAY_PER_TICK);
   state.ticksSinceStaminaSpend += 1;
-  if (state.ticksSinceStaminaSpend >= STAMINA_REGEN_DELAY_TICKS && !isBlocking(state)) {
+  if (state.ticksSinceStaminaSpend >= STAMINA_REGEN_DELAY_TICKS && !isGuardEngaged(state)) {
     state.stamina = Math.min(BASE_MAX_STAMINA, state.stamina + STAMINA_REGEN_PER_TICK);
   }
 
@@ -330,7 +339,9 @@ function applyStagger(
   cause: 'poise' | 'guard-break',
   events: CombatEvent[],
 ): void {
-  state.staggerTicks = ticks;
+  // Never let a fresh (shorter) stagger cut an ongoing one short — being hit
+  // again must not help the player recover sooner.
+  state.staggerTicks = Math.max(state.staggerTicks, ticks);
   state.poiseDamage = 0; // the break consumes the accumulator
   state.action = null; // any in-flight action is interrupted
   events.push({ type: 'stagger:start', ticks, cause });
@@ -367,7 +378,8 @@ export function resolveIncomingHit(
   // poise accumulation; breaching the threshold staggers and interrupts (§5).
   state.hp = Math.max(0, state.hp - incoming.hp);
   state.poiseDamage += incoming.poise;
-  const staggered = state.poiseDamage > poiseThreshold(build);
+  // >= to match the posture meter's break-at-cap convention (posture.ts).
+  const staggered = state.poiseDamage >= poiseThreshold(build);
   if (staggered) {
     applyStagger(state, POISE_STAGGER_TICKS, 'poise', events);
   }
