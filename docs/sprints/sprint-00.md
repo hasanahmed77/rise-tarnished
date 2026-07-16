@@ -19,7 +19,7 @@
       (ADR-0001 follow-up: React strict-mode double-mount check — passed,
       1 canvas after double-mount; registry-set-before-create() ordering
       verified against Phaser source in code review)
-- [ ] CI: lint + typecheck + unit (Vitest, 1 trivial test) + build, green
+- [x] CI: lint + typecheck + unit (Vitest — 4 real GameBridge tests) + build, green
 - [ ] Pre-commit hooks (format + lint)
 
 ## Daily check-ins
