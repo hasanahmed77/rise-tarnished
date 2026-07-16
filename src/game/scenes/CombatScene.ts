@@ -1,9 +1,11 @@
 import Phaser from 'phaser';
 import type { GameBridge } from '../bridge';
+import { BASE_MAX_HP, BASE_MAX_STAMINA } from '../combat/frameData';
 import {
   createPlayerState,
   isBlocking,
   isInvulnerable,
+  isStaggered,
   step,
   type CombatInput,
   type PlayerCombatState,
@@ -33,6 +35,7 @@ const COLORS = {
   iframe: 0x4a80d0,
   recovery: 0x6b6b6b,
   block: 0x5a7a9a,
+  stagger: 0xe0e0e0,
 } as const;
 
 export class CombatScene extends Phaser.Scene {
@@ -191,7 +194,9 @@ export class CombatScene extends Phaser.Scene {
 
     let color: number = COLORS.idle;
     const a = s.action;
-    if (a) {
+    if (isStaggered(s)) {
+      color = COLORS.stagger;
+    } else if (a) {
       if (a.id === 'dodge') color = isInvulnerable(s) ? COLORS.iframe : COLORS.recovery;
       else if (isBlocking(s)) color = COLORS.block;
       else if (a.phase === 'startup') color = COLORS.startup;
@@ -203,9 +208,14 @@ export class CombatScene extends Phaser.Scene {
 
     this.facingPip.x = s.x + (s.facing === 1 ? PLAYER_W / 2 - 4 : -PLAYER_W / 2 + 4);
 
-    this.hpBar.width = 200 * (s.hp / 100);
-    this.staminaBar.width = 200 * (s.stamina / 100);
-    const status = `action: ${a ? `${a.id}/${a.phase}` : 'idle'}   hp: ${s.hp.toFixed(0)}   stam: ${s.stamina.toFixed(0)}`;
+    this.hpBar.width = 200 * (s.hp / BASE_MAX_HP);
+    this.staminaBar.width = 200 * (s.stamina / BASE_MAX_STAMINA);
+    const mode = isStaggered(s)
+      ? `STAGGERED (${s.staggerTicks})`
+      : a
+        ? `${a.id}/${a.phase}`
+        : 'idle';
+    const status = `action: ${mode}   hp: ${s.hp.toFixed(0)}   stam: ${s.stamina.toFixed(0)}   poise dmg: ${s.poiseDamage.toFixed(0)}`;
     if (status !== this.lastStatus) {
       this.statusText.setText(status);
       this.lastStatus = status;

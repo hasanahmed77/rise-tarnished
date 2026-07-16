@@ -8,6 +8,28 @@ export const TICKS_PER_SECOND = 60;
 export const BASE_MAX_HP = 100;
 export const BASE_MAX_STAMINA = 100;
 
+/** Stamina regen: 25/s, starting 0.5s after the last spend; paused while the
+ * block stance is held (§3). */
+export const STAMINA_REGEN_PER_TICK = 25 / TICKS_PER_SECOND;
+export const STAMINA_REGEN_DELAY_TICKS = 30;
+
+/** Poise: resistance to being interrupted (§5). Accumulated poise damage
+ * decays 10/s; exceeding the threshold staggers the target and resets the
+ * accumulator. Threshold scales with vitality (+0.5/pt, §6). */
+export const BASE_POISE = 20;
+export const POISE_PER_VITALITY = 0.5;
+export const POISE_DECAY_PER_TICK = 10 / TICKS_PER_SECOND;
+export const POISE_STAGGER_TICKS = 30;
+
+/** Guard break: a block that empties the stamina bar → long stagger (§4). */
+export const GUARD_BREAK_STAGGER_TICKS = 40;
+
+/** Posture (boss-only, §5): fills from player offense; breaking it opens a
+ * critical window. Decays slowly so pressure matters. */
+export const POSTURE_MAX = 100;
+export const POSTURE_DECAY_PER_TICK = 3 / TICKS_PER_SECOND;
+export const POSTURE_CRITICAL_WINDOW_TICKS = 90;
+
 /** World units travelled per tick while free-moving (≈180 u/s). */
 export const MOVE_SPEED = 3;
 
