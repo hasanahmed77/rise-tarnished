@@ -12,17 +12,21 @@
 - [x] ADRs 0001–0003 (Proposed)
 - [x] Design specs: COMBAT_SYSTEM.md, BOSS_AI.md (souls-like combat + 3-layer HFSM)
 - [x] ADRs reviewed → Accepted
-- [ ] Initial commit; repo pushed to GitHub
-- [ ] Branch protection on `main`; GitHub Project board (columns per SDLC §2)
+- [x] Initial commit; repo pushed to GitHub
+- [x] Branch protection on `main`; GitHub Project board (columns per SDLC §2)
 - [ ] Backlog seeded as GitHub Issues (Sprint 1 candidates)
-- [ ] Walking skeleton: Next.js + Phaser blank canvas, mount/unmount verified
-      (ADR-0001 follow-up: React strict-mode double-mount check)
+- [x] Walking skeleton: Next.js + Phaser blank canvas, mount/unmount verified
+      (ADR-0001 follow-up: React strict-mode double-mount check — passed,
+      1 canvas after double-mount; registry-set-before-create() ordering
+      verified against Phaser source in code review)
 - [ ] CI: lint + typecheck + unit (Vitest, 1 trivial test) + build, green
 - [ ] Pre-commit hooks (format + lint)
 
 ## Daily check-ins
 - **07-16:** Docs + design specs drafted. Combat/HFSM specs reviewed against
-  "souls-like, not simple" bar. Next: commit + GitHub setup.
+  "souls-like, not simple" bar. ADRs accepted, pushed to GitHub, branch
+  protection + Project board (#1) + labels set up. Next: seed Sprint 1 backlog
+  as issues, then walking skeleton + CI.
 
 ## Review (end of sprint)
 _(pending)_
