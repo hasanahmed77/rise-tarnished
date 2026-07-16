@@ -41,9 +41,9 @@ export function GameCanvas() {
   }, []);
 
   return (
-    <div className="flex flex-col items-center gap-2">
-      <div ref={containerRef} className="w-full max-w-[960px]" />
-      <p className="font-mono text-xs text-neutral-500">
+    <div className="relative h-full w-full">
+      <div ref={containerRef} className="h-full w-full" />
+      <p className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 font-mono text-xs text-neutral-500">
         {engineReady ? 'engine: ready (bridge ok)' : 'engine: booting…'}
       </p>
     </div>
