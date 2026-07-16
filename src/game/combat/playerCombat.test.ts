@@ -199,6 +199,17 @@ describe('block', () => {
     expect(r.state.stamina).toBeLessThan(s.stamina);
   });
 
+  it('takes FULL damage when hit during block startup (guard not yet up)', () => {
+    // Press block but stay within its 3-tick startup — the stance isn't established.
+    const s = step(createPlayerState(), press({ block: true }), CTX).state;
+    expect(s.action).toMatchObject({ id: 'block', phase: 'startup' });
+    expect(isBlocking(s)).toBe(false);
+
+    const r = resolveIncomingHit(s, { hp: 50, poise: 20 }, BUILD);
+    expect(r.result).toBe('hit');
+    expect(r.hpLost).toBe(50); // no reduction — guard must be established first
+  });
+
   it('flags a guard break when a block empties the stamina bar', () => {
     let s = step(createPlayerState(), press({ block: true }), CTX).state;
     s = run(s, FRAME_DATA.block.startup, press({ block: true }), press({ block: true }));

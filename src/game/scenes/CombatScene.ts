@@ -42,6 +42,7 @@ export class CombatScene extends Phaser.Scene {
   private hpBar!: Phaser.GameObjects.Rectangle;
   private staminaBar!: Phaser.GameObjects.Rectangle;
   private statusText!: Phaser.GameObjects.Text;
+  private lastStatus = '';
   private dummyFlash = 0;
 
   constructor() {
@@ -180,9 +181,11 @@ export class CombatScene extends Phaser.Scene {
 
     this.hpBar.width = 200 * (s.hp / 100);
     this.staminaBar.width = 200 * (s.stamina / 100);
-    this.statusText.setText(
-      `action: ${a ? `${a.id}/${a.phase}` : 'idle'}   hp: ${s.hp.toFixed(0)}   stam: ${s.stamina.toFixed(0)}`,
-    );
+    const status = `action: ${a ? `${a.id}/${a.phase}` : 'idle'}   hp: ${s.hp.toFixed(0)}   stam: ${s.stamina.toFixed(0)}`;
+    if (status !== this.lastStatus) {
+      this.statusText.setText(status);
+      this.lastStatus = status;
+    }
 
     if (this.dummyFlash > 0) {
       this.dummyFlash -= 1;

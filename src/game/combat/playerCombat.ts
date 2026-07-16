@@ -8,7 +8,6 @@
 // arrive in #7 — this module exposes the hooks they build on.
 
 import {
-  ATTACK_DAMAGE,
   BASE_MAX_HP,
   BASE_MAX_STAMINA,
   BLOCK_DAMAGE_MULT,
@@ -23,6 +22,14 @@ import {
 import type { PlayerBuild } from '../bridge';
 
 export type Phase = 'startup' | 'active' | 'recovery' | 'hold';
+
+// Fixed phase-transition graph (hoisted out of the per-tick hot path). Block
+// routes startup → hold; everything else startup → active → recovery → end.
+const NEXT_PHASE: Record<Exclude<Phase, 'hold'>, Phase | 'end'> = {
+  startup: 'active',
+  active: 'recovery',
+  recovery: 'end',
+};
 
 export interface ActiveAction {
   id: ActionId;
@@ -81,7 +88,14 @@ export function isInvulnerable(state: PlayerCombatState): boolean {
   return state.action?.id === 'dodge' && state.action.phase === 'active';
 }
 
-/** True while a completed block stance is up and absorbing hits. */
+/**
+ * True while a completed block stance is up and absorbing hits.
+ *
+ * Note: this is deliberately the `hold` phase only — a hit landing during the
+ * block's 3-tick startup lands as a full (undefended) hit. The guard has to be
+ * *established* to reduce damage; you can't panic-raise it into an incoming
+ * blow. This is intentional Soulslike behaviour, locked by a test.
+ */
 export function isBlocking(state: PlayerCombatState): boolean {
   return state.action?.id === 'block' && state.action.phase === 'hold';
 }
@@ -177,13 +191,12 @@ function advancePhase(
   action.tickInPhase += 1;
   if (action.tickInPhase < action.phaseLength) return;
 
-  // Current phase finished — advance to the next.
-  const next: Record<Exclude<Phase, 'hold'>, Phase | 'end'> = {
-    startup: action.id === 'block' ? 'hold' : 'active',
-    active: 'recovery',
-    recovery: 'end',
-  };
-  const target = next[action.phase as Exclude<Phase, 'hold'>];
+  // Current phase finished — advance to the next. Block is the one special case:
+  // its startup leads to an (indefinite) hold rather than an active window.
+  const target =
+    action.phase === 'startup' && action.id === 'block'
+      ? 'hold'
+      : NEXT_PHASE[action.phase as Exclude<Phase, 'hold'>];
 
   if (target === 'end') {
     const finished = action.id;
@@ -277,5 +290,3 @@ export function resolveIncomingHit(
   state.hp = Math.max(0, state.hp - incoming.hp);
   return { state, result: 'hit', hpLost: incoming.hp, guardBroken: false };
 }
-
-export { ATTACK_DAMAGE };
