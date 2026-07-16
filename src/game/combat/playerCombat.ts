@@ -10,12 +10,19 @@
 import {
   BASE_MAX_HP,
   BASE_MAX_STAMINA,
+  BASE_POISE,
   BLOCK_DAMAGE_MULT,
   BLOCK_STAMINA_PER_HIT,
   FRAME_DATA,
+  GUARD_BREAK_STAGGER_TICKS,
   LIGHT_CHAIN_RECOVERY_STEP,
   LIGHT_MAX_CHAIN,
   MOVE_SPEED,
+  POISE_DECAY_PER_TICK,
+  POISE_PER_VITALITY,
+  POISE_STAGGER_TICKS,
+  STAMINA_REGEN_DELAY_TICKS,
+  STAMINA_REGEN_PER_TICK,
   dodgeIframes,
   type ActionId,
 } from './frameData';
@@ -49,6 +56,13 @@ export interface PlayerCombatState {
   stamina: number;
   /** null == idle/free (can move and start actions). */
   action: ActiveAction | null;
+  /** Accumulated poise damage; decays over time, staggers past threshold. */
+  poiseDamage: number;
+  /** Ticks of stagger remaining. While > 0: no actions, no movement, fully
+   * vulnerable, and any in-flight action has been interrupted. */
+  staggerTicks: number;
+  /** Ticks since stamina was last spent (drives the regen delay). */
+  ticksSinceStaminaSpend: number;
 }
 
 export interface CombatInput {
@@ -72,7 +86,9 @@ export interface StepContext {
 export type CombatEvent =
   | { type: 'action:start'; id: ActionId; chainIndex: number }
   | { type: 'action:end'; id: ActionId }
-  | { type: 'attack:active'; id: 'light' | 'heavy'; chainIndex: number };
+  | { type: 'attack:active'; id: 'light' | 'heavy'; chainIndex: number }
+  | { type: 'stagger:start'; ticks: number; cause: 'poise' | 'guard-break' }
+  | { type: 'stagger:end' };
 
 export interface StepResult {
   state: PlayerCombatState;
@@ -80,7 +96,26 @@ export interface StepResult {
 }
 
 export function createPlayerState(x = 0): PlayerCombatState {
-  return { x, facing: 1, hp: BASE_MAX_HP, stamina: BASE_MAX_STAMINA, action: null };
+  return {
+    x,
+    facing: 1,
+    hp: BASE_MAX_HP,
+    stamina: BASE_MAX_STAMINA,
+    action: null,
+    poiseDamage: 0,
+    staggerTicks: 0,
+    ticksSinceStaminaSpend: STAMINA_REGEN_DELAY_TICKS,
+  };
+}
+
+/** Poise threshold — how much accumulated poise damage staggers this build (§5/§6). */
+export function poiseThreshold(build: PlayerBuild): number {
+  return BASE_POISE + build.vitality * POISE_PER_VITALITY;
+}
+
+/** True while staggered: locked out of everything and fully vulnerable. */
+export function isStaggered(state: PlayerCombatState): boolean {
+  return state.staggerTicks > 0;
 }
 
 /** The player is invulnerable during a dodge's active (i-frame) window (§4). */
@@ -128,7 +163,10 @@ function startAction(
   ctx: StepContext,
   events: CombatEvent[],
 ): void {
-  state.stamina -= FRAME_DATA[id].stamina;
+  if (FRAME_DATA[id].stamina > 0) {
+    state.stamina -= FRAME_DATA[id].stamina;
+    state.ticksSinceStaminaSpend = 0;
+  }
   state.action = {
     id,
     phase: 'startup',
@@ -224,6 +262,21 @@ export function step(prev: PlayerCombatState, input: CombatInput, ctx: StepConte
   const state: PlayerCombatState = { ...prev, action: prev.action ? { ...prev.action } : null };
   const events: CombatEvent[] = [];
 
+  // Passive per-tick resources (§3/§5): poise damage decays; stamina regens
+  // after the post-spend delay, except while the block stance is up.
+  state.poiseDamage = Math.max(0, state.poiseDamage - POISE_DECAY_PER_TICK);
+  state.ticksSinceStaminaSpend += 1;
+  if (state.ticksSinceStaminaSpend >= STAMINA_REGEN_DELAY_TICKS && !isBlocking(state)) {
+    state.stamina = Math.min(BASE_MAX_STAMINA, state.stamina + STAMINA_REGEN_PER_TICK);
+  }
+
+  // Staggered: locked out until it runs down. Inputs are ignored entirely.
+  if (state.staggerTicks > 0) {
+    state.staggerTicks -= 1;
+    if (state.staggerTicks === 0) events.push({ type: 'stagger:end' });
+    return { state, events };
+  }
+
   if (state.action === null) {
     if (!tryStartFromInput(state, input, ctx, events)) {
       // Idle: free movement.
@@ -264,29 +317,59 @@ export interface HitResolution {
   result: HitResult;
   /** HP actually lost after i-frames/blocking. */
   hpLost: number;
-  /** True when a block emptied the stamina bar (guard break — stagger is #7). */
+  /** True when a block emptied the stamina bar → guard-break stagger. */
   guardBroken: boolean;
+  /** True when this hit staggered the player (poise break or guard break). */
+  staggered: boolean;
+  events: CombatEvent[];
+}
+
+function applyStagger(
+  state: PlayerCombatState,
+  ticks: number,
+  cause: 'poise' | 'guard-break',
+  events: CombatEvent[],
+): void {
+  state.staggerTicks = ticks;
+  state.poiseDamage = 0; // the break consumes the accumulator
+  state.action = null; // any in-flight action is interrupted
+  events.push({ type: 'stagger:start', ticks, cause });
 }
 
 /** Resolve an incoming attack against the player's current defensive state. */
 export function resolveIncomingHit(
   prev: PlayerCombatState,
   incoming: IncomingHit,
-  _build: PlayerBuild,
+  build: PlayerBuild,
 ): HitResolution {
   const state: PlayerCombatState = { ...prev, action: prev.action ? { ...prev.action } : null };
+  const events: CombatEvent[] = [];
 
   if (isInvulnerable(state)) {
-    return { state, result: 'dodged', hpLost: 0, guardBroken: false };
+    return { state, result: 'dodged', hpLost: 0, guardBroken: false, staggered: false, events };
   }
 
   if (isBlocking(state)) {
+    // A held guard absorbs the poise damage entirely; the price is HP chip
+    // and stamina drain — and a drained bar is a guard break (§4/§5).
     const hpLost = incoming.hp * BLOCK_DAMAGE_MULT;
     state.hp = Math.max(0, state.hp - hpLost);
     state.stamina = Math.max(0, state.stamina - BLOCK_STAMINA_PER_HIT);
-    return { state, result: 'blocked', hpLost, guardBroken: state.stamina === 0 };
+    state.ticksSinceStaminaSpend = 0; // the drain restarts the regen delay
+    const guardBroken = state.stamina === 0;
+    if (guardBroken) {
+      applyStagger(state, GUARD_BREAK_STAGGER_TICKS, 'guard-break', events);
+    }
+    return { state, result: 'blocked', hpLost, guardBroken, staggered: guardBroken, events };
   }
 
+  // Undefended (idle, committed, or already staggered): full HP damage plus
+  // poise accumulation; breaching the threshold staggers and interrupts (§5).
   state.hp = Math.max(0, state.hp - incoming.hp);
-  return { state, result: 'hit', hpLost: incoming.hp, guardBroken: false };
+  state.poiseDamage += incoming.poise;
+  const staggered = state.poiseDamage > poiseThreshold(build);
+  if (staggered) {
+    applyStagger(state, POISE_STAGGER_TICKS, 'poise', events);
+  }
+  return { state, result: 'hit', hpLost: incoming.hp, guardBroken: false, staggered, events };
 }
