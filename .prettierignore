@@ -1,0 +1,14 @@
+# Build artifacts & deps
+.next/
+node_modules/
+out/
+coverage/
+
+# Generated / vendored
+package-lock.json
+next-env.d.ts
+public/
+
+# Docs and design specs are hand-formatted (tables, ASCII diagrams) — leave them alone
+docs/
+*.md

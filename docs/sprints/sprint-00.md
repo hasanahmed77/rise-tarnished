@@ -20,7 +20,8 @@
       1 canvas after double-mount; registry-set-before-create() ordering
       verified against Phaser source in code review)
 - [x] CI: lint + typecheck + unit (Vitest — 4 real GameBridge tests) + build, green
-- [ ] Pre-commit hooks (format + lint)
+- [x] Pre-commit hooks (husky + lint-staged: eslint --fix + prettier on staged
+      files; blocks on lint error — verified block & auto-fix cases)
 
 ## Daily check-ins
 - **07-16:** Docs + design specs drafted. Combat/HFSM specs reviewed against
