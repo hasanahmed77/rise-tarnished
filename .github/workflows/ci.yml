@@ -21,6 +21,14 @@ jobs:
           node-version: 22
           cache: npm
 
+      # Pin npm: runner-bundled npm versions have disagreed on lockfile
+      # validation (picomatch hoisting). 11.x is what the lock is authored
+      # and verified with.
+      - name: Pin npm
+        run: |
+          npm install -g npm@11
+          node --version && npm --version
+
       - name: Install
         run: npm ci
 
