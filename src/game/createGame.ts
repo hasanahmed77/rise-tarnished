@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { BootScene } from './scenes/BootScene';
+import { CombatScene } from './scenes/CombatScene';
 import type { GameBridge } from './bridge';
 
 // This module (and everything it imports) touches Phaser, which assumes a
@@ -20,7 +20,7 @@ export function createGame(parent: HTMLElement, bridge: GameBridge): Phaser.Game
       default: 'arcade',
       arcade: { gravity: { x: 0, y: 0 } },
     },
-    scene: [BootScene],
+    scene: [CombatScene],
   });
 
   // The bridge crosses the boundary via the game registry, not module state,
