@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { BootScene } from './scenes/BootScene';
+import { CombatScene } from './scenes/CombatScene';
 import type { GameBridge } from './bridge';
 
 // This module (and everything it imports) touches Phaser, which assumes a
@@ -9,18 +9,20 @@ export function createGame(parent: HTMLElement, bridge: GameBridge): Phaser.Game
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     parent,
-    width: 960,
-    height: 540,
+    // Fill the parent element exactly; Scale.RESIZE keeps the canvas synced
+    // to the parent's CSS size (via ResizeObserver) on every window/layout
+    // resize, so `width`/`height` here are just the initial values.
+    width: parent.clientWidth,
+    height: parent.clientHeight,
     backgroundColor: '#141210',
     scale: {
-      mode: Phaser.Scale.FIT,
-      autoCenter: Phaser.Scale.CENTER_BOTH,
+      mode: Phaser.Scale.RESIZE,
     },
     physics: {
       default: 'arcade',
       arcade: { gravity: { x: 0, y: 0 } },
     },
-    scene: [BootScene],
+    scene: [CombatScene],
   });
 
   // The bridge crosses the boundary via the game registry, not module state,
