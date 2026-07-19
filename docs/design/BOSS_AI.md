@@ -124,6 +124,28 @@ pick via seeded weighted RNG → execute frames → on recovery end, next decisi
 if eligible = ∅ → fallback: REPOSITION toward nearest eligible range band
 ```
 
+**Sprint 2 implementation status (#8):** L3 (this section) shipped in full —
+eligibility filtering, seeded weighted pick, F2/F3/F7/F8 enforced by
+construction, combo branching with authored conditions. Two terms above are
+**not yet live**: `moves matching current tactic` (no L2 exists yet — every
+move in the phase table is currently eligible regardless of `tactics`) and
+`behaviorMod` (no behavior tracker exists yet — weights are flat/authored
+only: `weight = 1` uniform for top-level picks, authored `weight` for combo
+links). Both land with #9. `comboContext` — F3 chain-depth gating and F8
+recent-history exclusion — is live.
+
+Boss-specific tuning constants introduced by #8
+(`src/game/boss/bossTuning.ts`) — flat v1 numbers, not yet spec'd elsewhere:
+
+| Constant | Value | What |
+|---|---|---|
+| `BOSS_BASE_MAX_HP` | 400 | Phase-1 HP pool |
+| `BOSS_POISE_THRESHOLD` | 40 | Flat poise-break threshold (no vitality-style scaling) |
+| `BOSS_POISE_STAGGER_TICKS` | 45 | Lockout duration on a poise break |
+| `CRITICAL_HIT_MULTIPLIER` | 2× | HP-damage multiplier during the posture critical window |
+| `BOSS_MOVE_SPEED` | 2 u/tick | Approach/retreat speed while free |
+| `BOSS_PREFERRED_RANGE` | 70 u | Distance the boss holds when not mid-sequence |
+
 ## 5. The Behavior Tracker (adaptation input)
 
 Rolling window (default **20s**, tick-resolution) of player telemetry, reduced

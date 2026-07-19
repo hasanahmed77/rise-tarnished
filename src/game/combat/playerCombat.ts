@@ -26,6 +26,7 @@ import {
   type ActionId,
 } from './frameData';
 import { applyUndefendedHit, tickPoiseDecay } from './poise';
+import { clamp } from '../util';
 import type { PlayerBuild } from '../bridge';
 
 export type Phase = 'startup' | 'active' | 'recovery' | 'hold';
@@ -291,7 +292,7 @@ export function step(prev: PlayerCombatState, input: CombatInput, ctx: StepConte
       // Idle: free movement.
       if (input.moveX !== 0) {
         state.facing = input.moveX > 0 ? 1 : -1;
-        state.x = Math.max(ctx.minX, Math.min(ctx.maxX, state.x + input.moveX * MOVE_SPEED));
+        state.x = clamp(state.x + input.moveX * MOVE_SPEED, ctx.minX, ctx.maxX);
       }
     }
     return { state, events };

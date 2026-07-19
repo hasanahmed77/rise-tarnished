@@ -62,6 +62,15 @@ Sequenced #22 → #8 (the boss entity consumes the extracted core).
 
 ## Daily check-ins
 - **07-17:** Sprint planned; #22 first (prerequisite), then #8.
+- **07-17 (cont.):** Shipped #22. Shipped #8: rng, MoveDef schema + fairness
+  data test, Margit's 8-move table, L3 selection pipeline (F3/F7/F8 by
+  construction), the boss step/hit-resolution modules, and full scene wiring
+  — Margit now fights the player in the sandbox. 79 tests, incl. seeded
+  2000-tick determinism and 4000-tick fairness simulations; the F2 simulation
+  test caught a real bug (no-combo moves skipped the inter-sequence gap)
+  before it ever reached the scene. Live-verified end-to-end via manual
+  Phaser-step pumping (rAF throttles on the backgrounded automation tab —
+  known from Sprint 1's retro).
 
 ## Review (end of sprint)
 _(pending)_
