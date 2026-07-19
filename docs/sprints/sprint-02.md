@@ -17,11 +17,11 @@ otherwise duplicate the player's poise/hit-resolution logic.
 
 ## Committed scope
 
-- [ ] **#22** Extract entity-generic combat core — size M, p1 (chore)
+- [x] **#22** Extract entity-generic combat core — size M, p1 (chore, PR #25)
       *Prerequisite. PoiseState unit shared by player+boss; generic hit
       resolution with player-only block/i-frame decorators; no behavior change
       (existing 39 tests pass unmodified or import-only changes).*
-- [ ] **#8** Margit move table + L3 action selection — size L, p1 (feature)
+- [x] **#8** Margit move table + L3 action selection — size L, p1 (feature, PR #26)
       *~14 moves as MoveDef data incl. branching combos; eligibility filtering
       (range/cooldown/fairness) → seeded weighted RNG; schema-level data test
       enforcing fairness invariants F1/F2/F7 in CI; Margit rendered in the
@@ -73,7 +73,53 @@ Sequenced #22 → #8 (the boss entity consumes the extracted core).
   known from Sprint 1's retro).
 
 ## Review (end of sprint)
-_(pending)_
+
+**Goal met: yes.** Margit exists and fights back: an 8-move data-driven table
+(6 combo branches) on the L3 selection pipeline, running through the
+entity-generic combat core, deterministic (seeded PRNG, 2000-tick replay test)
+and fairness-validated (schema data test + 4000-tick × multi-seed simulations
+for F2/F3/F8).
+
+Delivered:
+- #22: shared `poise.ts` (decay/accumulate/undefended-hit core); player
+  delegates to it, boss consumes it — zero behavior change, old tests untouched.
+- #8: `boss/` module — seeded rng, MoveDef schema + fairness validator (CI
+  fails on an illegal move), Margit's phase-1 table, L3 selection
+  (range/cooldown/condition/F8 filtering → weighted pick, F2/F3 by
+  construction), boss entity step + hit resolution with posture-break
+  critical hits, full scene wiring. **83 tests.**
+
+The review pass on #8 was the most productive yet — 8 verified findings, five
+of them real correctness bugs in the fairness accounting (frozen cooldowns
+during move execution, combo-link cooldown bypass, dead combo conditions, F2
+bypass on interrupt, missing player hit-feedback). All fixed and pinned by
+tests before merge.
 
 ## Retro (end of sprint)
-_(pending)_
+
+**What worked**
+- The two-layer test strategy earned its keep twice: the F2 *simulation* test
+  caught a real gap-skipping bug during development, and the multi-agent
+  review's verify pass then caught four more accounting bugs the simulations
+  missed (because the sims never attacked the boss — no interrupts, no
+  cooldown pressure). Different bug classes, different nets.
+- Sequencing #22 before #8 worked exactly as intended: the boss reused the
+  shared poise core with zero duplication.
+- Model-switching mid-sprint (Opus/Fable/Sonnet authored different parts)
+  proved a non-issue in practice — the artifacts (tests, review, CI) carry the
+  trust, not the author. Worth remembering when the anxiety resurfaces.
+
+**What didn't**
+- The DoD docs gap recurred a third time (bossTuning constants + behaviorMod
+  deferral undocumented) — the same class of finding #7's review caught.
+  Clearly a blind spot in how features get authored, not a one-off.
+- Simulation tests only exercised a passive boss (no player bot attacking it),
+  which is why the interrupt-path and cooldown-freeze bugs survived to review.
+
+**One change for next sprint**
+- When authoring any new tuning constant or deferring any spec'd term, update
+  the design doc *in the same edit* — treat the doc line as part of the code
+  change, not a follow-up. And when writing simulation tests, include at least
+  one adversarial actor (hits landing both ways), not just observation.
+
+**Sprint status: CLOSED.**
