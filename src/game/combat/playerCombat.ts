@@ -18,7 +18,6 @@ import {
   LIGHT_CHAIN_RECOVERY_STEP,
   LIGHT_MAX_CHAIN,
   MOVE_SPEED,
-  POISE_DECAY_PER_TICK,
   POISE_PER_VITALITY,
   POISE_STAGGER_TICKS,
   STAMINA_REGEN_DELAY_TICKS,
@@ -26,6 +25,7 @@ import {
   dodgeIframes,
   type ActionId,
 } from './frameData';
+import { applyUndefendedHit, tickPoiseDecay } from './poise';
 import type { PlayerBuild } from '../bridge';
 
 export type Phase = 'startup' | 'active' | 'recovery' | 'hold';
@@ -273,7 +273,7 @@ export function step(prev: PlayerCombatState, input: CombatInput, ctx: StepConte
 
   // Passive per-tick resources (§3/§5): poise damage decays; stamina regens
   // after the post-spend delay, except while the block stance is up.
-  state.poiseDamage = Math.max(0, state.poiseDamage - POISE_DECAY_PER_TICK);
+  state.poiseDamage = tickPoiseDecay(state.poiseDamage);
   state.ticksSinceStaminaSpend += 1;
   if (state.ticksSinceStaminaSpend >= STAMINA_REGEN_DELAY_TICKS && !isGuardEngaged(state)) {
     state.stamina = Math.min(BASE_MAX_STAMINA, state.stamina + STAMINA_REGEN_PER_TICK);
@@ -374,14 +374,21 @@ export function resolveIncomingHit(
     return { state, result: 'blocked', hpLost, guardBroken, staggered: guardBroken, events };
   }
 
-  // Undefended (idle, committed, or already staggered): full HP damage plus
-  // poise accumulation; breaching the threshold staggers and interrupts (§5).
-  state.hp = Math.max(0, state.hp - incoming.hp);
-  state.poiseDamage += incoming.poise;
-  // >= to match the posture meter's break-at-cap convention (posture.ts).
-  const staggered = state.poiseDamage >= poiseThreshold(build);
-  if (staggered) {
+  // Undefended (idle, committed, or already staggered): delegate to the
+  // entity-generic core — full HP damage plus poise accumulation, stagger on
+  // break (§5). The player-specific part is only the stagger consequence.
+  const hit = applyUndefendedHit(state, incoming, poiseThreshold(build));
+  state.hp = hit.hp;
+  state.poiseDamage = hit.poiseDamage;
+  if (hit.poiseBroken) {
     applyStagger(state, POISE_STAGGER_TICKS, 'poise', events);
   }
-  return { state, result: 'hit', hpLost: incoming.hp, guardBroken: false, staggered, events };
+  return {
+    state,
+    result: 'hit',
+    hpLost: incoming.hp,
+    guardBroken: false,
+    staggered: hit.poiseBroken,
+    events,
+  };
 }
