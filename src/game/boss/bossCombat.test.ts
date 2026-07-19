@@ -17,6 +17,7 @@ const CTX: BossStepContext = {
   playerX: 250,
   minX: 40,
   maxX: 900,
+  lastPlayerAction: null,
 };
 
 function run(state: ReturnType<typeof createBossState>, ticks: number, ctx: BossStepContext = CTX) {
@@ -60,6 +61,23 @@ describe('boss step — approach and engage', () => {
     expect(events.some((e) => e.type === 'move:start')).toBe(true);
     expect(events.some((e) => e.type === 'move:active')).toBe(true);
     expect(events.some((e) => e.type === 'move:end')).toBe(true);
+  });
+
+  it('decrements cooldowns even while a move is executing, not just while idle', () => {
+    const s0 = createBossState(200, 7);
+    // Force a known cooldown and put the boss mid-move (startup) so it's
+    // NOT idle for the next several ticks.
+    const s1 = {
+      ...s0,
+      action: { moveId: 'margit.cane_swing_1', phase: 'startup' as const, tickInPhase: 0 },
+      selection: { ...s0.selection, cooldowns: { 'margit.grab': 90 } },
+    };
+    const s2 = step(s1, CTX).state;
+    // The boss is still mid-startup (didn't finish this tick), yet the
+    // cooldown must have ticked down — it's a wall-clock timer, not an
+    // "only while free to act" timer.
+    expect(s2.action).not.toBeNull();
+    expect(s2.selection.cooldowns['margit.grab']).toBe(89);
   });
 });
 
@@ -117,6 +135,19 @@ describe('resolveBossHit', () => {
     expect(isBossStaggered(r.state)).toBe(true);
     expect(r.state.staggerTicks).toBe(BOSS_POISE_STAGGER_TICKS);
     expect(r.state.action).toBeNull();
+  });
+
+  it('grants the F2 inter-sequence gap on interrupt, same as a clean sequence end', () => {
+    let s = createBossState(220, 1);
+    s = {
+      ...s,
+      action: { moveId: 'margit.cane_swing_1', phase: 'startup', tickInPhase: 5 },
+      selection: { ...s.selection, chainDepth: 2, gapTicksRemaining: 0 },
+    };
+    const r = resolveBossHit(s, { hp: 5, poise: BOSS_POISE_THRESHOLD, postureDamage: 0 });
+    expect(r.poiseBroken).toBe(true);
+    expect(r.state.selection.chainDepth).toBe(0);
+    expect(r.state.selection.gapTicksRemaining).toBeGreaterThan(0);
   });
 
   it('breaks posture and opens a critical window at the cap', () => {

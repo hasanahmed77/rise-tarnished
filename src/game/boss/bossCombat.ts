@@ -15,6 +15,7 @@ import {
 } from '../combat/posture';
 import { applyUndefendedHit, tickPoiseDecay } from '../combat/poise';
 import { MIN_INTER_SEQUENCE_GAP_TICKS } from './moveSchema';
+import { clamp } from '../util';
 import {
   createSelectionState,
   selectComboBranch,
@@ -30,7 +31,7 @@ import {
   BOSS_PREFERRED_RANGE,
   CRITICAL_HIT_MULTIPLIER,
 } from './bossTuning';
-import type { MoveDef, MoveTable } from './types';
+import type { MoveDef, MoveTable, PlayerActionTag } from './types';
 
 export type BossPhase = 'startup' | 'active' | 'recovery';
 
@@ -74,6 +75,10 @@ export interface BossStepContext {
   playerX: number;
   minX: number;
   maxX: number;
+  /** What the player did against the boss's most recent hit — feeds combo
+   * branch conditions (e.g. "only punish if they dodged"). null if the last
+   * attack never connected, or nothing's happened yet. */
+  lastPlayerAction: PlayerActionTag | null;
 }
 
 export type BossEvent =
@@ -101,16 +106,19 @@ export function step(
   };
   const events: BossEvent[] = [];
 
-  // Passive per-tick decay (mirrors playerCombat.step).
+  // Passive per-tick decay (mirrors playerCombat.step). Cooldowns and the F2
+  // gap advance unconditionally, every tick, regardless of what the boss is
+  // doing — a move mid-execution, staggered, or collapsed all still cost real
+  // time (cooldowns are wall-clock timers, not "boss is free to act" timers).
   state.poiseDamage = tickPoiseDecay(state.poiseDamage);
   const postureTick = tickPosture(state.posture);
   state.posture = postureTick.state;
   if (postureTick.event === 'critical-expired') events.push({ type: 'posture:recovered' });
+  state.selection = tickSelectionState(state.selection);
 
   if (state.staggerTicks > 0) {
     state.staggerTicks -= 1;
     if (state.staggerTicks === 0) events.push({ type: 'stagger:end' });
-    state.selection = tickSelectionState(state.selection);
     return { state, events };
   }
 
@@ -123,7 +131,6 @@ export function step(
   const distance = Math.abs(ctx.playerX - state.x);
 
   if (state.action === null) {
-    state.selection = tickSelectionState(state.selection);
     const result = selectTopLevel(ctx.table, ctx.topLevelIds, distance, state.selection);
     state.selection = result.state;
     if (result.kind === 'move') {
@@ -172,7 +179,7 @@ export function step(
   // owes the F2 gap before the next sequence may start, same as a chain that
   // ran out of branches.
   const branch = move.combo
-    ? selectComboBranch(ctx.table, distance, finishedId, state.selection)
+    ? selectComboBranch(ctx.table, distance, finishedId, state.selection, ctx.lastPlayerAction)
     : {
         kind: 'sequence-end' as const,
         state: {
@@ -196,7 +203,7 @@ function approach(state: BossCombatState, ctx: BossStepContext, distance: number
   if (distance > BOSS_PREFERRED_RANGE) {
     const dir = ctx.playerX >= state.x ? 1 : -1;
     state.facing = dir;
-    state.x = Math.max(ctx.minX, Math.min(ctx.maxX, state.x + dir * BOSS_MOVE_SPEED));
+    state.x = clamp(state.x + dir * BOSS_MOVE_SPEED, ctx.minX, ctx.maxX);
   } else {
     state.facing = ctx.playerX >= state.x ? 1 : -1;
   }
@@ -237,6 +244,15 @@ export function resolveBossHit(
   if (hit.poiseBroken) {
     state.staggerTicks = BOSS_POISE_STAGGER_TICKS;
     state.action = null;
+    // An interrupt ends the sequence early, same as running out of combo
+    // branches or finishing a no-combo move — it still owes the F2 gap
+    // before a fresh sequence may start (fairness invariant, not just a
+    // between-sequences courtesy for moves that finish cleanly).
+    state.selection = {
+      ...state.selection,
+      chainDepth: 0,
+      gapTicksRemaining: MIN_INTER_SEQUENCE_GAP_TICKS,
+    };
     events.push({ type: 'stagger:start' });
   }
 

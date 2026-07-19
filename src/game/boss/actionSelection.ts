@@ -12,7 +12,7 @@
 
 import { MIN_INTER_SEQUENCE_GAP_TICKS } from './moveSchema';
 import { weightedPick, type RngState } from './rng';
-import type { MoveTable } from './types';
+import type { MoveTable, PlayerActionTag } from './types';
 
 export interface SelectionState {
   rng: RngState;
@@ -110,12 +110,18 @@ export function selectTopLevel(
  * A combo branch decision — called when `lastMoveId`'s recovery just ended
  * and it declares a `combo`. If chainDepth already hit maxChain, or nothing
  * eligible, the sequence ends (F3, by construction).
+ *
+ * `lastPlayerAction` is what the player did against `lastMoveId`'s own hit
+ * (dodge/block/null) — it's what a link's `condition` checks (e.g. "only
+ * branch to the punish if they dodged"). No behavior tracker exists yet
+ * (#9); this is just the single most-recent action, not a rolling signal.
  */
 export function selectComboBranch(
   table: MoveTable,
   distance: number,
   lastMoveId: string,
   state: SelectionState,
+  lastPlayerAction: PlayerActionTag | null,
 ): SelectionResult {
   const lastMove = table[lastMoveId];
   const combo = lastMove.combo;
@@ -131,7 +137,9 @@ export function selectComboBranch(
     return (
       move !== undefined &&
       inRange(move.rangeBand, distance) &&
-      !wouldViolateF8(link.move, state.recentMoves)
+      (state.cooldowns[link.move] ?? 0) === 0 &&
+      !wouldViolateF8(link.move, state.recentMoves) &&
+      (!link.condition || link.condition.playerAction === lastPlayerAction)
     );
   });
 

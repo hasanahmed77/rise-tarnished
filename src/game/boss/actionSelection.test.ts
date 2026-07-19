@@ -101,7 +101,7 @@ describe('selectTopLevel', () => {
 describe('selectComboBranch', () => {
   it('ends the sequence once maxChain is reached, without consuming RNG', () => {
     const s = { ...createSelectionState(createRng(1)), chainDepth: 3 }; // a's maxChain is 3
-    const r = selectComboBranch(TABLE, 50, 'a', s);
+    const r = selectComboBranch(TABLE, 50, 'a', s, null);
     expect(r.kind).toBe('sequence-end');
     expect(r.state.chainDepth).toBe(0);
     expect(r.state.rng).toBe(s.rng);
@@ -109,7 +109,7 @@ describe('selectComboBranch', () => {
 
   it('sets the F2 gap when a sequence ends', () => {
     const s = { ...createSelectionState(createRng(1)), chainDepth: 3 };
-    const r = selectComboBranch(TABLE, 50, 'a', s);
+    const r = selectComboBranch(TABLE, 50, 'a', s, null);
     expect(r.state.gapTicksRemaining).toBeGreaterThan(0);
   });
 
@@ -121,9 +121,45 @@ describe('selectComboBranch', () => {
     // distance 50 excludes `ranged` entirely → always ends the sequence.
     for (let seed = 0; seed < 30; seed++) {
       const s = { ...createSelectionState(createRng(seed)), chainDepth: 1 };
-      const r = selectComboBranch(table, 50, 'a', s);
+      const r = selectComboBranch(table, 50, 'a', s, null);
       expect(r.kind).toBe('sequence-end');
     }
+  });
+
+  it('never offers a branch link whose target is on cooldown', () => {
+    const s = { ...createSelectionState(createRng(1)), chainDepth: 1, cooldowns: { b: 5 } };
+    for (let seed = 0; seed < 50; seed++) {
+      const r = selectComboBranch(TABLE, 50, 'a', { ...s, rng: createRng(seed) }, null);
+      if (r.kind === 'move') expect(r.moveId).not.toBe('b');
+    }
+  });
+
+  it('only offers a conditioned link when lastPlayerAction matches, and always offers unconditioned ones', () => {
+    const table: MoveTable = {
+      ...TABLE,
+      a: {
+        ...TABLE.a,
+        combo: {
+          maxChain: 3,
+          next: [{ move: 'b', weight: 1, condition: { playerAction: 'dodge' } }],
+        },
+      },
+    };
+    const s = { ...createSelectionState(createRng(1)), chainDepth: 1 };
+
+    // Wrong/no last action: the conditioned link is never eligible → always ends.
+    for (let seed = 0; seed < 20; seed++) {
+      const r = selectComboBranch(table, 50, 'a', { ...s, rng: createRng(seed) }, null);
+      expect(r.kind).toBe('sequence-end');
+    }
+    for (let seed = 0; seed < 20; seed++) {
+      const r = selectComboBranch(table, 50, 'a', { ...s, rng: createRng(seed) }, 'block');
+      expect(r.kind).toBe('sequence-end');
+    }
+
+    // Matching action: eligible, and since it's the only option, always picked.
+    const r = selectComboBranch(table, 50, 'a', s, 'dodge');
+    expect(r).toMatchObject({ kind: 'move', moveId: 'b' });
   });
 });
 

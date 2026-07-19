@@ -54,6 +54,7 @@ const PLAYER_COLORS = {
   recovery: 0x6b6b6b,
   block: 0x5a7a9a,
   stagger: 0xe0e0e0,
+  hitFlash: 0xf0dede,
 } as const;
 
 const BOSS_COLORS = {
@@ -73,6 +74,7 @@ export class CombatScene extends Phaser.Scene {
   private bossCtx!: BossStepContext;
   private accumulator = 0;
   private bossHitFlash = 0;
+  private playerHitFlash = 0;
 
   private keys!: Record<string, Phaser.Input.Keyboard.Key>;
 
@@ -119,6 +121,7 @@ export class CombatScene extends Phaser.Scene {
       playerX: this.sim.x,
       minX: ARENA_MARGIN,
       maxX: this.scale.width - ARENA_MARGIN,
+      lastPlayerAction: null,
     };
 
     this.groundBar = this.add.rectangle(0, 0, 0, 4, 0x8a7a5c);
@@ -300,7 +303,11 @@ export class CombatScene extends Phaser.Scene {
     // v1: the move's selection range band doubles as its hit reach — a
     // boss-specific hitbox-reach field can be split out if a move ever needs
     // to select at one range but hit at another.
-    if (!bossFaces || distance > move.rangeBand[1]) return;
+    if (!bossFaces || distance > move.rangeBand[1]) {
+      // Never connected — no action to report to the next combo decision.
+      this.bossCtx.lastPlayerAction = null;
+      return;
+    }
 
     const result = resolveIncomingHit(
       this.sim,
@@ -308,6 +315,20 @@ export class CombatScene extends Phaser.Scene {
       this.ctx.build,
     );
     this.sim = result.state;
+
+    // Feed combo branch conditions (e.g. "punish if they dodged", BOSS_AI.md
+    // §4) and give the player the same hit-connect feedback the boss gets —
+    // but only for outcomes with a real consequence; a clean dodge already
+    // reads visually via the i-frame alpha, so it doesn't also flash.
+    if (result.result === 'dodged') {
+      this.bossCtx.lastPlayerAction = 'dodge';
+    } else if (result.result === 'blocked') {
+      this.bossCtx.lastPlayerAction = 'block';
+      this.playerHitFlash = 8;
+    } else {
+      this.bossCtx.lastPlayerAction = null;
+      this.playerHitFlash = 8;
+    }
   }
 
   private render(): void {
@@ -330,6 +351,10 @@ export class CombatScene extends Phaser.Scene {
       else if (a.phase === 'startup') color = PLAYER_COLORS.startup;
       else if (a.phase === 'active') color = PLAYER_COLORS.attack;
       else color = PLAYER_COLORS.recovery;
+    }
+    if (this.playerHitFlash > 0) {
+      this.playerHitFlash -= 1;
+      color = PLAYER_COLORS.hitFlash;
     }
     this.player.fillColor = color;
     this.player.alpha = isInvulnerable(s) ? 0.5 : 1;
