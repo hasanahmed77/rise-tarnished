@@ -7,9 +7,17 @@ import {
   type BossStepContext,
 } from './bossCombat';
 import { margitMoves, margitTopLevelMoveIds } from './margitMoves';
+import { margitWeightRules } from './weighting';
 import { BOSS_POISE_STAGGER_TICKS, BOSS_POISE_THRESHOLD } from './bossTuning';
 import { MIN_INTER_SEQUENCE_GAP_TICKS } from './moveSchema';
 import { isCriticalWindowOpen } from '../combat/posture';
+
+const OBSERVED_NEUTRAL = {
+  playerBlocking: false,
+  dodgeStarted: false,
+  attackStarted: false,
+  punishableOpening: false,
+};
 
 const CTX: BossStepContext = {
   table: margitMoves,
@@ -18,6 +26,8 @@ const CTX: BossStepContext = {
   minX: 40,
   maxX: 900,
   lastPlayerAction: null,
+  weightRules: [],
+  observed: OBSERVED_NEUTRAL,
 };
 
 function run(state: ReturnType<typeof createBossState>, ticks: number, ctx: BossStepContext = CTX) {
@@ -123,6 +133,41 @@ describe('boss step — fairness holds over simulation (BOSS_AI.md §9)', () => 
       }
       expect(chainDepthWasZeroBeforeStart).toBe(true);
     }
+  });
+});
+
+describe('adaptation end-to-end (#9): the boss punishes patterns', () => {
+  it('a panic-rolling player sees measurably more delayed strikes than a calm one', () => {
+    // Adversarial actor (Sprint 2 retro lesson): the roll-spammer bot dodges
+    // the instant any boss move starts; the calm player never touches dodge.
+    // Same seeds, full boss steps, margit weight rules live.
+    let delayedVsSpammer = 0;
+    let delayedVsCalm = 0;
+
+    for (let seed = 0; seed < 6; seed++) {
+      for (const spammer of [true, false]) {
+        let s = createBossState(300, seed);
+        let dodgeNextTick = false;
+        let count = 0;
+        for (let i = 0; i < 8000; i++) {
+          const r = step(s, {
+            ...CTX,
+            weightRules: margitWeightRules,
+            observed: { ...OBSERVED_NEUTRAL, dodgeStarted: spammer && dodgeNextTick },
+          });
+          s = r.state;
+          dodgeNextTick = r.events.some((e) => e.type === 'move:start');
+          count += r.events.filter(
+            (e) => e.type === 'move:start' && e.moveId === 'margit.delayed_overhead',
+          ).length;
+        }
+        if (spammer) delayedVsSpammer += count;
+        else delayedVsCalm += count;
+      }
+    }
+
+    // The adaptation must be perceptible in aggregate (S2's first evidence).
+    expect(delayedVsSpammer).toBeGreaterThan(delayedVsCalm);
   });
 });
 
