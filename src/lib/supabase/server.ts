@@ -3,9 +3,9 @@ import { cookies } from 'next/headers';
 
 /** Server Component / Route Handler Supabase client. Reads the session from
  * request cookies; writes are best-effort (see the catch below) because
- * Server Components can't set cookies on the response themselves — the
- * middleware refreshes the session on every request, so a missed write here
- * self-heals on the next navigation. */
+ * Server Components can't set cookies on the response themselves — the proxy
+ * (src/proxy.ts) refreshes the session on every request, so a missed write
+ * here self-heals on the next navigation. */
 export async function createClient() {
   // cookies() MUST be called before anything that could throw: it's what
   // signals Next.js to bail a route out of static prerendering into dynamic
@@ -35,7 +35,7 @@ export async function createClient() {
           }
         } catch {
           // Called from a Server Component render — no response to attach
-          // cookies to. Safe to ignore; middleware.ts covers the refresh.
+          // cookies to. Safe to ignore; the proxy (src/proxy.ts) covers the refresh.
         }
       },
     },
