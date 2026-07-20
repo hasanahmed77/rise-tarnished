@@ -38,6 +38,12 @@ create policy "update own stats" on public.player_stats
 -- No insert/delete policy: rows are provisioned by handle_new_user() below
 -- (SECURITY DEFINER, bypasses RLS) and never deleted directly by the client.
 
+-- RLS policies filter *rows*; Postgres still requires an explicit table-level
+-- grant before `authenticated` can touch the table at all (the Supabase
+-- dashboard adds this automatically for UI-created tables — migrations must
+-- do it themselves). Scoped to exactly what the policies above allow.
+grant select, update on public.player_stats to authenticated;
+
 -- ---------------------------------------------------------------------------
 -- player_progress — one row per user. Fixed linear region order; no boss
 -- select, so "furthest unlocked" + a cleared-set is sufficient (no join table
@@ -58,6 +64,8 @@ create policy "select own progress" on public.player_progress
 create policy "update own progress" on public.player_progress
   for update using (auth.uid () = user_id)
   with check (auth.uid () = user_id);
+
+grant select, update on public.player_progress to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- player_builds — equipment loadout. Minimal columns: no weapon catalog
@@ -89,6 +97,8 @@ create policy "update own builds" on public.player_builds
 create policy "delete own builds" on public.player_builds
   for delete using (auth.uid () = user_id);
 
+grant select, insert, update, delete on public.player_builds to authenticated;
+
 -- ---------------------------------------------------------------------------
 -- attempt_logs — one row per fight attempt. Append-only (no update/delete
 -- policy): the log is an immutable record, feeding #13's post-death recap
@@ -115,6 +125,8 @@ create policy "insert own attempt logs" on public.attempt_logs
   with check (auth.uid () = user_id);
 
 create index attempt_logs_user_id_created_at_idx on public.attempt_logs (user_id, created_at desc);
+
+grant select, insert on public.attempt_logs to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Auto-provision player_stats + player_progress on signup (the standard
