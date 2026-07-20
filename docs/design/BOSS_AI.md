@@ -157,13 +157,29 @@ L2/tracker constants introduced by #9 (`behaviorTracker.ts`, `tactics.ts`):
 | `PUNISH_COOLDOWN_TICKS` | 240 (4 s) | F5 — max one triggered punish per window |
 | `TACTIC_MIN/MAX_HOLD_TICKS` | 120–300 (2–5 s) | Intent re-scoring cadence |
 | `TACTIC_SOFTMAX_TEMPERATURE` | 0.35 | Decisiveness of tactic selection (§10) |
+| `TURTLE_SATURATION_FRACTION` | 0.5 | Blocking/camping half the window saturates turtleIndex & rangeCamping |
+| `MIN_RATE_WINDOW_SECONDS` | 3 s | Rate signals' denominator floor — early-fight actions can't read as saturated rates |
+| `RANGE_DEADZONE` | 12 u | Movement stops within this of the tactic's target range |
+| `PUNISHABLE_OPENING_RANGE` | 90 u | Max distance a committed player action reads as a PUNISH opening |
 
 Movement is tactic-owned (one authority — `TACTIC_TARGET_RANGE` in
 `bossCombat.ts`): NEUTRAL/REPOSITION hold the preferred pocket (70 u),
 PRESSURE/PUNISH crowd to 45 u, BAIT hovers at 95 u, RECOVER backs off to
-150 u. The free-movement `approach()` walks toward the current intent's
-target range; L2 REPOSITION expresses itself through this table rather than
-through a second movement system.
+125 u — deliberately below `CAMPING_DISTANCE` (140), so the boss's own
+retreat can never make the tracker read the player as camping. The
+free-movement `approach()` walks toward the current intent's target range;
+L2 REPOSITION expresses itself through this table rather than through a
+second movement system. **RECOVER is movement-only**: while it is the
+current intent the boss starts no new sequences — §3's "back off, guard,
+low aggression" beat, enforced in `step()` rather than through move tags.
+
+**Shipped v1 tactic semantics vs the §3 table:** the Enter-when conditions
+are expressed through the score modifiers below §3 (signals raise a tactic's
+softmax score), but the per-tactic *Exit-when* conditions are **not yet
+implemented** — every tactic holds for a drawn 2–5 s window, then re-scores.
+PUNISH's trigger + F5 rate limit is the one live trigger/exit mechanism.
+Condition-based exits (REPOSITION ends on reaching the band, RECOVER on
+poise recovery) are open work, not silently shipped.
 
 ## 5. The Behavior Tracker (adaptation input)
 

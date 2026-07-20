@@ -6,6 +6,7 @@ import {
   tickSelectionState,
 } from './actionSelection';
 import { createRng } from './rng';
+import { NEUTRAL_SIGNALS } from './behaviorTracker';
 import type { MoveTable } from './types';
 
 const TABLE: MoveTable = {
@@ -95,6 +96,57 @@ describe('selectTopLevel', () => {
       const r = selectTopLevel(TABLE, ['a', 'b'], 50, { ...s, rng: createRng(seed) });
       if (r.kind === 'move') expect(r.moveId).not.toBe('b');
     }
+  });
+
+  it('tactic filter restricts the pool to moves expressing the current intent', () => {
+    const table: MoveTable = {
+      ...TABLE,
+      a: { ...TABLE.a, tactics: ['PRESSURE'] },
+      b: { ...TABLE.b, tactics: ['NEUTRAL'] },
+    };
+    const weighting = { tactic: 'PRESSURE' as const, signals: NEUTRAL_SIGNALS, rules: [] };
+    for (let seed = 0; seed < 50; seed++) {
+      const s = { ...createSelectionState(createRng(seed)) };
+      const r = selectTopLevel(table, ['a', 'b'], 50, s, weighting);
+      expect(r).toMatchObject({ kind: 'move', moveId: 'a' }); // only PRESSURE-tagged
+    }
+  });
+
+  it('falls back to the full eligible pool when no move expresses the tactic (§4)', () => {
+    // Neither move lists RECOVER — the filter empties, the fallback must fire
+    // (not stall into no-action).
+    const weighting = { tactic: 'RECOVER' as const, signals: NEUTRAL_SIGNALS, rules: [] };
+    const picks = new Set<string>();
+    for (let seed = 0; seed < 60; seed++) {
+      const s = createSelectionState(createRng(seed));
+      const r = selectTopLevel(TABLE, ['a', 'b'], 50, s, weighting);
+      expect(r.kind).toBe('move');
+      if (r.kind === 'move') picks.add(r.moveId);
+    }
+    expect(picks).toEqual(new Set(['a', 'b'])); // whole pool reachable
+  });
+
+  it('behaviorMod skews the pick distribution under the weighted path', () => {
+    const table: MoveTable = {
+      ...TABLE,
+      a: { ...TABLE.a, tags: ['delayed'], cooldownTicks: 0 },
+    };
+    const rules = [{ tag: 'delayed' as const, signal: 'dodgeReflex' as const, gain: 3 }];
+    const spam = { ...NEUTRAL_SIGNALS, dodgeReflex: 1 };
+    let aWeighted = 0;
+    let aFlat = 0;
+    for (let seed = 0; seed < 200; seed++) {
+      const s = createSelectionState(createRng(seed));
+      const w = selectTopLevel(table, ['a', 'b'], 50, s, {
+        tactic: 'NEUTRAL',
+        signals: spam,
+        rules,
+      });
+      const f = selectTopLevel(table, ['a', 'b'], 50, s);
+      if (w.kind === 'move' && w.moveId === 'a') aWeighted += 1;
+      if (f.kind === 'move' && f.moveId === 'a') aFlat += 1;
+    }
+    expect(aWeighted).toBeGreaterThan(aFlat); // 4x weight → picked far more often
   });
 });
 

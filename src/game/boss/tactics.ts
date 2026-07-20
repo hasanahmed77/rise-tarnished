@@ -49,12 +49,16 @@ export function createTacticState(rng: RngState): TacticState {
   };
 }
 
-/** Base scores per tactic before behavior weighting. Data, not code. */
-const BASE_SCORE: Record<Tactic, number> = {
+/** Tactics that can be *scored into* at a re-decision. PUNISH is excluded by
+ * type: it is trigger-only (entered solely via its opening + F5 gate), so a
+ * tuner can't mistakenly give it a base score that would silently do nothing. */
+type ScoredTactic = Exclude<Tactic, 'PUNISH'>;
+
+/** Base scores per scoreable tactic before behavior weighting. Data, not code. */
+const BASE_SCORE: Record<ScoredTactic, number> = {
   NEUTRAL: 1.0,
   PRESSURE: 0.7,
   BAIT: 0.6,
-  PUNISH: 0, // never scored in — entered only via its trigger
   REPOSITION: 0.5,
   RECOVER: 0.4,
 };
@@ -64,7 +68,7 @@ const BASE_SCORE: Record<Tactic, number> = {
  * score. Clamped to [0.25, 4] (F4). The table is data so tuning is a data
  * change with a unit test.
  */
-function tacticBehaviorMod(tactic: Tactic, s: BehaviorSignals, ctx: TacticContext): number {
+function tacticBehaviorMod(tactic: ScoredTactic, s: BehaviorSignals, ctx: TacticContext): number {
   let mod = 1;
   switch (tactic) {
     case 'PRESSURE':
@@ -84,8 +88,6 @@ function tacticBehaviorMod(tactic: Tactic, s: BehaviorSignals, ctx: TacticContex
     case 'NEUTRAL':
       mod *= 1 + s.dodgeTiming * 0.5; // good dodgers get a faster reset pace
       break;
-    case 'PUNISH':
-      break;
   }
   return Math.max(0.25, Math.min(4, mod));
 }
@@ -99,10 +101,13 @@ export interface TacticDecision {
 /**
  * Advance one tick. Re-scores when the hold expires; PUNISH pre-empts any
  * decision immediately when its trigger fires (and F5 allows).
+ *
+ * `getSignals` is a thunk: signal reduction over the tracker window is only
+ * paid on the ticks that actually re-score (every 2–5s), not at 60Hz.
  */
 export function tickTactic(
   prev: TacticState,
-  signals: BehaviorSignals,
+  getSignals: () => BehaviorSignals,
   ctx: TacticContext,
 ): TacticDecision {
   const state: TacticState = { ...prev };
@@ -123,9 +128,10 @@ export function tickTactic(
     return { state, changed: false };
   }
 
-  // Hold expired: softmax over the scoreable tactics (PUNISH excluded — it is
-  // trigger-only). Deterministic given (rng, signals, ctx).
-  const candidates = (Object.keys(BASE_SCORE) as Tactic[]).filter((t) => t !== 'PUNISH');
+  // Hold expired: softmax over the scoreable tactics (PUNISH excluded by
+  // type). Deterministic given (rng, signals, ctx).
+  const signals = getSignals();
+  const candidates = Object.keys(BASE_SCORE) as ScoredTactic[];
   const scores = candidates.map((t) => BASE_SCORE[t] * tacticBehaviorMod(t, signals, ctx));
   const maxScore = Math.max(...scores);
   const exps = scores.map((sc) => Math.exp((sc - maxScore) / TACTIC_SOFTMAX_TEMPERATURE));

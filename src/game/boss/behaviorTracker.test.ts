@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   computeSignals,
   createTracker,
+  noteBossStartup,
   trackEvent,
   trackTick,
+  MIN_RATE_WINDOW_SECONDS,
   PANIC_ROLL_WINDOW_TICKS,
   TRACKER_WINDOW_SECONDS,
   type TrackerState,
@@ -16,7 +18,6 @@ const NEUTRAL: TrackerTickInput = {
   distance: 70,
   dodgeStarted: false,
   attackStarted: false,
-  bossStartupBegan: false,
 };
 
 function run(state: TrackerState, ticks: number, input: Partial<TrackerTickInput> = {}) {
@@ -30,7 +31,7 @@ describe('behavior tracker signals', () => {
     let s = createTracker();
     // Dodge-spam stream: every boss startup is answered with an instant roll.
     for (let i = 0; i < 10; i++) {
-      s = trackTick(s, { ...NEUTRAL, bossStartupBegan: true });
+      s = noteBossStartup(s);
       s = run(s, 3); // 3 ticks later — inside the panic window
       s = trackTick(s, { ...NEUTRAL, dodgeStarted: true });
       s = run(s, 30);
@@ -41,7 +42,7 @@ describe('behavior tracker signals', () => {
   it('dodgeReflex: rolls well after the tell are NOT panic', () => {
     let s = createTracker();
     for (let i = 0; i < 10; i++) {
-      s = trackTick(s, { ...NEUTRAL, bossStartupBegan: true });
+      s = noteBossStartup(s);
       s = run(s, PANIC_ROLL_WINDOW_TICKS + 10); // patient dodge
       s = trackTick(s, { ...NEUTRAL, dodgeStarted: true });
       s = run(s, 30);
@@ -97,7 +98,7 @@ describe('behavior tracker signals', () => {
     let s = createTracker();
     // Heavy dodge-spam...
     for (let i = 0; i < 10; i++) {
-      s = trackTick(s, { ...NEUTRAL, bossStartupBegan: true });
+      s = noteBossStartup(s);
       s = trackTick(s, { ...NEUTRAL, dodgeStarted: true });
     }
     expect(computeSignals(s).dodgeReflex).toBeGreaterThan(0.9);
@@ -109,5 +110,15 @@ describe('behavior tracker signals', () => {
   it('healGreed reads 0 with no heals (flasks not implemented yet)', () => {
     const s = run(createTracker(), 600);
     expect(computeSignals(s).healGreed).toBe(0);
+  });
+
+  it('one early attack cannot saturate aggression (warm-up rate floor)', () => {
+    // Half a second in, one attack: without the floor this read 1.0.
+    let s = createTracker();
+    s = trackTick(s, { ...NEUTRAL, attackStarted: true });
+    s = run(s, 29);
+    const a = computeSignals(s).aggression;
+    expect(a).toBeLessThanOrEqual(1 / MIN_RATE_WINDOW_SECONDS / 1.5 + 1e-9);
+    expect(a).toBeLessThan(0.3);
   });
 });

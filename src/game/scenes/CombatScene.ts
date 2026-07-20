@@ -16,6 +16,7 @@ import { isCriticalWindowOpen } from '../combat/posture';
 import {
   createBossState,
   isBossStaggered,
+  isPunishableOpening,
   observeTrackerEvent,
   resolveBossHit,
   step as bossStep,
@@ -286,24 +287,28 @@ export class CombatScene extends Phaser.Scene {
 
       this.bossCtx.playerX = this.sim.x;
       // This tick's player telemetry for the behavior tracker (BOSS_AI.md §5).
-      // punishableOpening: the player is committed to a heavy's startup within
-      // close range — the PUNISH trigger. (Heals join this once flasks exist.)
+      // Starts come from the sim's own action:start events — the authoritative
+      // signal — never re-derived from state shape (tickInPhase resets on
+      // every phase change, so shape-probing counted one dodge three times).
       this.bossCtx.observed = {
         playerBlocking: isBlocking(this.sim),
-        dodgeStarted: this.sim.action?.id === 'dodge' && this.sim.action.tickInPhase === 0,
-        attackStarted:
-          (this.sim.action?.id === 'light' || this.sim.action?.id === 'heavy') &&
-          this.sim.action.phase === 'startup' &&
-          this.sim.action.tickInPhase === 0,
-        punishableOpening:
-          this.sim.action?.id === 'heavy' &&
-          this.sim.action.phase === 'startup' &&
-          Math.abs(this.boss.x - this.sim.x) < 90,
+        dodgeStarted: playerResult.events.some(
+          (e) => e.type === 'action:start' && e.id === 'dodge',
+        ),
+        attackStarted: playerResult.events.some(
+          (e) => e.type === 'action:start' && (e.id === 'light' || e.id === 'heavy'),
+        ),
+        // One shared definition of an opening (engine layer) — the headless
+        // bot harness (#14) exercises PUNISH through the same predicate.
+        punishableOpening: isPunishableOpening(this.sim, Math.abs(this.boss.x - this.sim.x)),
       };
       const bossResult = bossStep(this.boss, this.bossCtx);
       this.boss = bossResult.state;
       for (const e of bossResult.events) {
         if (e.type === 'move:active') this.resolveBossAttackOnPlayer(e.move);
+        // The boss acting also marks the fight as begun — a pre-input resize
+        // must not teleport a boss that's already mid-approach/mid-move.
+        if (e.type === 'move:start') this.fightStarted = true;
       }
 
       this.accumulator -= TICK_MS;

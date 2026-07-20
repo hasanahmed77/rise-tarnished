@@ -31,16 +31,20 @@ import {
   BOSS_POISE_THRESHOLD,
   BOSS_PREFERRED_RANGE,
   CRITICAL_HIT_MULTIPLIER,
+  PUNISHABLE_OPENING_RANGE,
 } from './bossTuning';
 import { POSTURE_MAX } from '../combat/frameData';
 import {
   computeSignals,
   createTracker,
+  noteBossStartup,
   trackEvent,
   trackTick,
+  type BehaviorSignals,
   type TrackerEvent,
   type TrackerState,
 } from './behaviorTracker';
+import type { PlayerCombatState } from '../combat/playerCombat';
 import { createTacticState, tickTactic, type TacticState } from './tactics';
 import type { WeightRule } from './weighting';
 import type { MoveDef, MoveTable, PlayerActionTag, Tactic } from './types';
@@ -123,10 +127,24 @@ export type BossEvent =
 
 function startMove(state: BossCombatState, moveId: string, events: BossEvent[]): void {
   state.action = { moveId, phase: 'startup', tickInPhase: 0 };
-  // Tell the tracker a startup began — rolls in the next PANIC_ROLL_WINDOW
-  // ticks count as reflex-rolls (the dodgeReflex signal's raw material).
-  state.tracker = { ...state.tracker, ticksSinceBossStartup: 0 };
+  // Rolls in the next PANIC_ROLL_WINDOW ticks count as reflex-rolls — the
+  // dodgeReflex signal's raw material.
+  state.tracker = noteBossStartup(state.tracker);
   events.push({ type: 'move:start', moveId });
+}
+
+/**
+ * Is the player committed to something the boss can safely collect on RIGHT
+ * NOW (§3's PUNISH trigger: a whiffed heavy's recovery; later, a mid-heal)?
+ * Engine-agnostic on purpose — the scene and the headless bot harness (#14)
+ * must share ONE definition of an opening.
+ */
+export function isPunishableOpening(player: PlayerCombatState, distance: number): boolean {
+  return (
+    player.action?.id === 'heavy' &&
+    player.action.phase === 'recovery' &&
+    distance <= PUNISHABLE_OPENING_RANGE
+  );
 }
 
 export function step(
@@ -155,16 +173,18 @@ export function step(
   // L2 (#9): the tracker observes the player every tick, and the tactic
   // machine re-scores intent on its own cadence — both keep running while the
   // boss executes moves or is staggered (intent shifts even mid-swing; only
-  // *actions* wait for the animation).
+  // *actions* wait for the animation). Signal reduction is lazy+memoized:
+  // it's only paid on ticks where a decision actually reads the signals.
   state.tracker = trackTick(state.tracker, {
     playerBlocking: ctx.observed.playerBlocking,
     distance,
     dodgeStarted: ctx.observed.dodgeStarted,
     attackStarted: ctx.observed.attackStarted,
-    bossStartupBegan: false, // set below when a move actually starts this tick
   });
-  const signals = computeSignals(state.tracker);
-  const tacticDecision = tickTactic(state.tactic, signals, {
+  let signalsCache: BehaviorSignals | null = null;
+  const getSignals = () => (signalsCache ??= computeSignals(state.tracker));
+
+  const tacticDecision = tickTactic(state.tactic, getSignals, {
     distance,
     bossPoiseFraction: Math.min(1, state.poiseDamage / BOSS_POISE_THRESHOLD),
     bossPostureFraction: state.posture.value / POSTURE_MAX,
@@ -186,9 +206,15 @@ export function step(
   }
 
   if (state.action === null) {
+    // RECOVER means what §3 says: back off, don't start new sequences. The
+    // recovery beat is movement-only — the target-range walk below.
+    if (state.tactic.current === 'RECOVER') {
+      approach(state, ctx, distance);
+      return { state, events };
+    }
     const result = selectTopLevel(ctx.table, ctx.topLevelIds, distance, state.selection, {
       tactic: state.tactic.current,
-      signals,
+      signals: getSignals(),
       rules: ctx.weightRules,
     });
     state.selection = result.state;
@@ -267,7 +293,11 @@ const TACTIC_TARGET_RANGE: Record<Tactic, number> = {
   BAIT: 95, // hover just outside their reach, inviting the whiff
   PUNISH: 45, // close fast to collect
   REPOSITION: BOSS_PREFERRED_RANGE, // walk back to the pocket after resets
-  RECOVER: 150, // back off and breathe
+  // Must stay BELOW the tracker's CAMPING_DISTANCE (140): the boss backing
+  // off must never make the tracker read the player as camping — that was a
+  // self-inflicted feedback loop (boss retreats → rangeCamping rises →
+  // gap-closers spam a player who never moved).
+  RECOVER: 125, // back off and breathe
 };
 
 const RANGE_DEADZONE = 12;

@@ -5,10 +5,11 @@
 //
 // Implementation: a ring of 20 one-second buckets. Each tick/event increments
 // counters in the current bucket; once per second the ring advances and the
-// oldest bucket falls out. Exact windowing, O(1) per tick, no allocation
-// outside the fixed ring.
+// oldest bucket falls out. Copy-on-write like the rest of the sim (each tick
+// clones the ring array + the cursor bucket — cheap, but not allocation-free).
 
 import { TICKS_PER_SECOND } from '../combat/frameData';
+import { clamp } from '../util';
 
 /** Window length in seconds (spec default). */
 export const TRACKER_WINDOW_SECONDS = 20;
@@ -18,6 +19,9 @@ export const PANIC_ROLL_WINDOW_TICKS = 10;
 export const CAMPING_DISTANCE = 140;
 /** Attacks/second that saturate the aggression signal. */
 export const AGGRESSION_SATURATION_APS = 1.5;
+/** Rate signals divide by at least this many seconds, so one early action
+ * can't read as saturated aggression before the window has data. */
+export const MIN_RATE_WINDOW_SECONDS = 3;
 /** Blocking or camping fraction of the window that saturates turtleIndex. */
 export const TURTLE_SATURATION_FRACTION = 0.5;
 
@@ -88,16 +92,21 @@ export function createTracker(): TrackerState {
   };
 }
 
-/** Per-tick observations the scene feeds in. All optional except the flags. */
+/** Per-tick observations fed by the driver (scene or headless harness). */
 export interface TrackerTickInput {
   playerBlocking: boolean;
   distance: number;
-  /** The player pressed dodge this tick. */
+  /** The player STARTED a dodge this tick (action:start, not per-phase). */
   dodgeStarted: boolean;
-  /** The player pressed an attack this tick. */
+  /** The player STARTED an attack this tick (action:start, not per-phase). */
   attackStarted: boolean;
-  /** The boss entered a move's startup this tick. */
-  bossStartupBegan: boolean;
+}
+
+/** Mark that a boss move's startup began — rolls inside the next
+ * PANIC_ROLL_WINDOW ticks count as panic. The single mechanism for this
+ * (called by the boss's startMove, and directly by tests). */
+export function noteBossStartup(prev: TrackerState): TrackerState {
+  return { ...prev, ticksSinceBossStartup: 0 };
 }
 
 /** Discrete outcomes the scene reports as they happen. */
@@ -113,9 +122,7 @@ export function trackTick(prev: TrackerState, input: TrackerTickInput): TrackerS
   };
   const bucket = state.buckets[state.cursor];
 
-  state.ticksSinceBossStartup = input.bossStartupBegan
-    ? 0
-    : Math.min(Number.MAX_SAFE_INTEGER, state.ticksSinceBossStartup + 1);
+  state.ticksSinceBossStartup = Math.min(Number.MAX_SAFE_INTEGER, state.ticksSinceBossStartup + 1);
 
   bucket.ticks += 1;
   if (input.playerBlocking) bucket.blockTicks += 1;
@@ -154,7 +161,7 @@ export function trackEvent(prev: TrackerState, event: TrackerEvent): TrackerStat
   return state;
 }
 
-const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+const clamp01 = (v: number) => clamp(v, 0, 1);
 
 /** Reduce the window to the seven normalized signals. Pure; call at decision points. */
 export function computeSignals(state: TrackerState): BehaviorSignals {
@@ -164,7 +171,9 @@ export function computeSignals(state: TrackerState): BehaviorSignals {
   }, emptyBucket());
 
   const windowTicks = Math.max(1, sum.ticks);
-  const windowSeconds = windowTicks / TICKS_PER_SECOND;
+  // Rate signals use a floored denominator so the first seconds of a fight
+  // can't read one action as a saturated rate.
+  const rateWindowSeconds = Math.max(MIN_RATE_WINDOW_SECONDS, windowTicks / TICKS_PER_SECOND);
 
   return {
     dodgeReflex: sum.dodges === 0 ? 0 : clamp01(sum.panicDodges / sum.dodges),
@@ -175,6 +184,6 @@ export function computeSignals(state: TrackerState): BehaviorSignals {
     healGreed: sum.heals === 0 ? 0 : clamp01(sum.healsInPunishRange / sum.heals),
     rangeCamping: clamp01(sum.campingTicks / windowTicks / TURTLE_SATURATION_FRACTION),
     punishPattern: sum.hitsLanded === 0 ? 0 : clamp01(sum.punishHits / sum.hitsLanded),
-    aggression: clamp01(sum.attacks / windowSeconds / AGGRESSION_SATURATION_APS),
+    aggression: clamp01(sum.attacks / rateWindowSeconds / AGGRESSION_SATURATION_APS),
   };
 }

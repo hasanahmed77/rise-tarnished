@@ -26,7 +26,7 @@ function run(
   let s = state;
   const tactics: string[] = [];
   for (let i = 0; i < ticks; i++) {
-    const r = tickTactic(s, signals, ctx);
+    const r = tickTactic(s, () => signals, ctx);
     s = r.state;
     if (r.changed) tactics.push(s.current);
   }
@@ -43,7 +43,7 @@ describe('L2 tactic machine', () => {
 
   it('PUNISH pre-empts immediately when an opening appears', () => {
     const s = createTacticState(createRng(1));
-    const r = tickTactic(s, NEUTRAL_SIGNALS, { ...CTX, punishableOpening: true });
+    const r = tickTactic(s, () => NEUTRAL_SIGNALS, { ...CTX, punishableOpening: true });
     expect(r.state.current).toBe('PUNISH');
     expect(r.changed).toBe(true);
   });
@@ -55,7 +55,7 @@ describe('L2 tactic machine', () => {
     const ctx = { ...CTX, punishableOpening: true };
     const TOTAL = PUNISH_COOLDOWN_TICKS * 5; // 20 seconds
     for (let i = 0; i < TOTAL; i++) {
-      const r = tickTactic(s, NEUTRAL_SIGNALS, ctx);
+      const r = tickTactic(s, () => NEUTRAL_SIGNALS, ctx);
       if (r.changed && r.state.current === 'PUNISH') punishEntries += 1;
       s = r.state;
     }
@@ -75,8 +75,8 @@ describe('L2 tactic machine', () => {
       let baitSpam = 0;
       let baitCalm = 0;
       for (let i = 0; i < 5000; i++) {
-        sSpam = tickTactic(sSpam, spam, CTX).state;
-        sCalm = tickTactic(sCalm, NEUTRAL_SIGNALS, CTX).state;
+        sSpam = tickTactic(sSpam, () => spam, CTX).state;
+        sCalm = tickTactic(sCalm, () => NEUTRAL_SIGNALS, CTX).state;
         if (sSpam.current === 'BAIT') baitSpam += 1;
         if (sCalm.current === 'BAIT') baitCalm += 1;
       }
@@ -96,7 +96,7 @@ describe('L2 tactic machine', () => {
     let sincePrev = 0;
     const gaps: number[] = [];
     for (let i = 0; i < 20000; i++) {
-      const r = tickTactic(s, NEUTRAL_SIGNALS, CTX);
+      const r = tickTactic(s, () => NEUTRAL_SIGNALS, CTX);
       s = r.state;
       sincePrev += 1;
       if (r.changed) {

@@ -136,6 +136,41 @@ describe('boss step — fairness holds over simulation (BOSS_AI.md §9)', () => 
   });
 });
 
+describe('L2 behaviors in the boss step', () => {
+  it('cooldowns and the F2 gap keep advancing during a stagger lockout', () => {
+    let s = createBossState(220, 1);
+    s = {
+      ...s,
+      staggerTicks: 30,
+      selection: { ...s.selection, cooldowns: { 'margit.grab': 50 }, gapTicksRemaining: 20 },
+    };
+    for (let i = 0; i < 10; i++) s = step(s, CTX).state;
+    expect(s.staggerTicks).toBe(20);
+    expect(s.selection.cooldowns['margit.grab']).toBe(40); // still ticking
+    expect(s.selection.gapTicksRemaining).toBe(10); // still ticking
+  });
+
+  it('RECOVER intent never starts a new sequence (movement-only recovery beat)', () => {
+    let s = createBossState(220, 5);
+    // Pin the tactic in RECOVER with a long hold so it can't re-score away.
+    s = {
+      ...s,
+      tactic: { ...s.tactic, current: 'RECOVER' as const, ticksInTactic: 0, holdTicks: 10_000 },
+    };
+    const { events } = (() => {
+      const all: ReturnType<typeof step>['events'] = [];
+      let cur = s;
+      for (let i = 0; i < 600; i++) {
+        const r = step(cur, CTX);
+        cur = r.state;
+        all.push(...r.events);
+      }
+      return { events: all };
+    })();
+    expect(events.some((e) => e.type === 'move:start')).toBe(false);
+  });
+});
+
 describe('adaptation end-to-end (#9): the boss punishes patterns', () => {
   it('a panic-rolling player sees measurably more delayed strikes than a calm one', () => {
     // Adversarial actor (Sprint 2 retro lesson): the roll-spammer bot dodges
