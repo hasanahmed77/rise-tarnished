@@ -128,6 +128,13 @@ create index attempt_logs_user_id_created_at_idx on public.attempt_logs (user_id
 
 grant select, insert on public.attempt_logs to authenticated;
 
+-- service_role has BYPASSRLS (skips row-filtering), but that's independent
+-- of table-level grants — it still needs its own explicit GRANT, same as
+-- authenticated above. Needed by any server-side/admin client (the RLS test
+-- suite's admin client included).
+grant all on public.player_stats, public.player_progress, public.player_builds, public.attempt_logs
+  to service_role;
+
 -- ---------------------------------------------------------------------------
 -- Auto-provision player_stats + player_progress on signup (the standard
 -- Supabase pattern: a SECURITY DEFINER trigger function, since it must write
