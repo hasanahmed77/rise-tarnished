@@ -20,11 +20,11 @@ adversarial actors, not observation.
 
 ## Committed scope
 
-- [ ] **#9** L2 tactic machine + behavior tracker signals — size L, p1
+- [x] **#9** L2 tactic machine + behavior tracker signals — size L, p1
       *Seven rolling signals (BOSS_AI.md §5, 20s window); six tactics with
       entry/exit conditions (§3); PUNISH trigger priority; behaviorMod clamped
       to [0.25×, 4×] (F4); tactic filtering + behaviorMod wired into L3.*
-- [ ] **#10** Fairness invariants F1–F8 as property-based tests — size M, p2
+- [x] **#10** Fairness invariants F1–F8 as property-based tests — size M, p2
       *fast-check (or equivalent) over randomized signal streams and
       adversarial scripted players (roll-spammer, turtle, heal-greedy);
       ≥10k simulated decisions; any invariant breach fails CI.*

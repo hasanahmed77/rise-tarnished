@@ -262,7 +262,7 @@ This gives us, for free:
 | Signals | unit | dodge-spam input stream → `dodgeReflex` ≥ 0.7 |
 | L2 transitions | unit | `healGreed` high + in range → PUNISH eligible & prioritized |
 | L3 selection | unit (seeded) | given seed S and state X, selection is exactly move M |
-| Fairness | **property-based** | ∀ signal combinations: F1–F8 invariants hold over 10k simulated decisions |
+| Fairness | **property-based** | ∀ signal combinations: F1–F5/F7/F8 hold over 10k+ simulated decisions (shipped: `fairness.property.test.ts` — fast-check pure properties + 5 adversarial bots × 5 seeds × 2500 ticks + a chaos bot; F6 joins when phases land) |
 | Move tables | data test | every authored move satisfies schema + F1/F2/F7 |
 | Full fight | simulation | scripted "player bots" (roll-spammer, turtle, range-camper) vs. Margit → assert the counter-tactic rate rises |
 
