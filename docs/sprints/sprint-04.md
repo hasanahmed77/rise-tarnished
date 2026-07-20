@@ -23,7 +23,7 @@ twice.
 
 ## Committed scope
 
-- [ ] **#4** Google OAuth sign-in via Supabase — size M, p1
+- [x] **#4** Google OAuth sign-in via Supabase — size M, p1
       *Supabase project with Google OAuth as sole sign-in; sign-in/out works
       end-to-end in the Next.js shell; session persists across reloads;
       protected routes redirect unauthenticated users; anon key client-side
@@ -78,6 +78,21 @@ auth setup comes first).
 ## Daily check-ins
 - **07-18:** Sprint planned. Blocked on a Supabase project existing before
   #4 can start — confirming with the user before pulling it into progress.
+- **07-21:** User created the Supabase project; #4 built — SSR client/server
+  Supabase clients, session-refresh proxy (renamed from Next.js's deprecated
+  `middleware` convention), OAuth callback route, sign-in/out UI, `/` (public
+  landing) and `/play` (protected — server-side redirect if unauthenticated).
+  Hit the real external-service risk named in this sprint's own risk list:
+  Google provider needed enabling in Supabase (missed on first save, then a
+  missing OAuth Client Secret) — each config gap surfaced as a distinct,
+  correctly-worded Supabase error (`provider not enabled` →
+  `missing OAuth secret`), confirming the client-side code was correct
+  throughout and the problem was purely external configuration. Full round
+  trip (sign-in → Google consent → `/play` → reload persists session →
+  sign-out → back to `/`) manually verified by the user in their real,
+  authenticated browser — the automation pane's separate unauthenticated
+  profile correctly could not complete this leg (no credentials were ever
+  entered on the user's behalf, by design).
 
 ## Review (end of sprint)
 _(pending)_
