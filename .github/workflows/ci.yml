@@ -70,8 +70,13 @@ jobs:
       - name: Start local Supabase
         run: supabase start --exclude studio,imgproxy,logflare,vector,pgadmin-schema-diff,pgadmin-http
 
+      # `supabase status -o env` prints shell-quoted lines (KEY="value"), but
+      # GITHUB_ENV takes each line's value literally — piping it straight in
+      # left the quote characters embedded in the value (e.g. SUPABASE_URL
+      # became the 25-char string `"http://127.0.0.1:54321"`, not a valid
+      # URL). Strip the surrounding quotes before exporting.
       - name: Export local Supabase env
-        run: supabase status -o env >> "$GITHUB_ENV"
+        run: supabase status -o env | sed -E 's/^([A-Z_]+)="(.*)"$/\1=\2/' >> "$GITHUB_ENV"
 
       - name: RLS cross-user isolation tests
         run: npm run test:rls
