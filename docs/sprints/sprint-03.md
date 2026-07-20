@@ -63,6 +63,14 @@ Sequenced #9 → #10 (the property tests exercise the finished adaptation).
 
 ## Daily check-ins
 - **07-17:** Sprint planned; #9 pulled to In Progress.
+- **07-18:** #9 built: behavior tracker (7 signals, 20s bucket-ring window),
+  L2 tactic machine (softmax intent, PUNISH priority + F5), move-level
+  behaviorMod (F4-clamped, data rules), tactic filter + weighting wired into
+  L3, movement unified under TACTIC_TARGET_RANGE (one authority — the #26
+  seam). Adversarial roll-spammer sim proves delayed-strike frequency rises
+  (S2 evidence). 102 tests. Also fixed a latent spawn bug (create()-time
+  canvas width can be pre-layout junk; pre-fight relayouts now respawn at
+  ratio positions).
 
 ## Review (end of sprint)
 _(pending)_

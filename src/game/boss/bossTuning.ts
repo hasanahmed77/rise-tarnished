@@ -20,3 +20,7 @@ export const BOSS_MOVE_SPEED = 2;
 
 /** Distance the boss tries to hold when neither closing nor mid-sequence. */
 export const BOSS_PREFERRED_RANGE = 70;
+
+/** Max distance at which a committed player action reads as a punishable
+ * opening (§3 PUNISH trigger). */
+export const PUNISHABLE_OPENING_RANGE = 90;

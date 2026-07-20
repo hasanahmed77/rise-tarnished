@@ -12,7 +12,9 @@
 
 import { MIN_INTER_SEQUENCE_GAP_TICKS } from './moveSchema';
 import { weightedPick, type RngState } from './rng';
-import type { MoveTable, PlayerActionTag } from './types';
+import type { MoveTable, PlayerActionTag, Tactic } from './types';
+import { behaviorMod, type WeightRule } from './weighting';
+import type { BehaviorSignals } from './behaviorTracker';
 
 export interface SelectionState {
   rng: RngState;
@@ -65,15 +67,30 @@ export type SelectionResult =
   /** Mid-gap (F2) or nothing eligible: no decision this tick, just approach. */
   | { kind: 'no-action'; state: SelectionState };
 
+/** The adaptation inputs to a top-level pick (BOSS_AI.md §4-§5). Optional so
+ * the pipeline degrades to flat weights when no tracker/tactic exists (tests,
+ * future bosses before their weighting data is authored). */
+export interface SelectionWeighting {
+  tactic: Tactic;
+  signals: BehaviorSignals;
+  rules: WeightRule[];
+}
+
 /**
  * A fresh top-level pick — called when the boss is idle and not continuing a
  * combo (lastMoveId is null, or the last move had no `combo` field).
+ *
+ * With `weighting` present, the §4 pipeline runs in full: the eligible set is
+ * intersected with moves expressing the current tactic (falling back to the
+ * un-filtered eligible set when the intersection is empty, per the spec's
+ * fallback rule), and each move's weight is base(1) × behaviorMod (F4-clamped).
  */
 export function selectTopLevel(
   table: MoveTable,
   topLevelIds: string[],
   distance: number,
   state: SelectionState,
+  weighting?: SelectionWeighting,
 ): SelectionResult {
   if (state.gapTicksRemaining > 0) {
     return { kind: 'no-action', state };
@@ -92,12 +109,22 @@ export function selectTopLevel(
     return { kind: 'no-action', state };
   }
 
-  const [picked, nextRng] = weightedPick(
-    eligible.map((id) => ({ item: id, weight: 1 })),
-    eligible.length,
-    state.rng,
-  );
-  const chosen = picked!; // eligible is non-empty and weights sum exactly to totalWeight
+  // Tactic filter (§4): prefer moves expressing the current intent; if none
+  // do, fall back to the whole eligible set rather than stalling.
+  let pool = eligible;
+  if (weighting) {
+    const tacticMatched = eligible.filter((id) => table[id].tactics.includes(weighting.tactic));
+    if (tacticMatched.length > 0) pool = tacticMatched;
+  }
+
+  const options = pool.map((id) => ({
+    item: id,
+    weight: weighting ? behaviorMod(table[id], weighting.signals, weighting.rules) : 1,
+  }));
+  const totalWeight = options.reduce((sum, o) => sum + o.weight, 0);
+
+  const [picked, nextRng] = weightedPick(options, totalWeight, state.rng);
+  const chosen = picked!; // pool is non-empty and weights sum exactly to totalWeight
   const withRng = { ...state, rng: nextRng };
   return {
     kind: 'move',
@@ -113,8 +140,8 @@ export function selectTopLevel(
  *
  * `lastPlayerAction` is what the player did against `lastMoveId`'s own hit
  * (dodge/block/null) — it's what a link's `condition` checks (e.g. "only
- * branch to the punish if they dodged"). No behavior tracker exists yet
- * (#9); this is just the single most-recent action, not a rolling signal.
+ * branch to the punish if they dodged"). Distinct from the behavior tracker's
+ * rolling signals: this is the single most-recent concrete outcome.
  */
 export function selectComboBranch(
   table: MoveTable,

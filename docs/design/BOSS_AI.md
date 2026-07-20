@@ -124,15 +124,15 @@ pick via seeded weighted RNG → execute frames → on recovery end, next decisi
 if eligible = ∅ → fallback: REPOSITION toward nearest eligible range band
 ```
 
-**Sprint 2 implementation status (#8):** L3 (this section) shipped in full —
-eligibility filtering, seeded weighted pick, F2/F3/F7/F8 enforced by
-construction, combo branching with authored conditions. Two terms above are
-**not yet live**: `moves matching current tactic` (no L2 exists yet — every
-move in the phase table is currently eligible regardless of `tactics`) and
-`behaviorMod` (no behavior tracker exists yet — weights are flat/authored
-only: `weight = 1` uniform for top-level picks, authored `weight` for combo
-links). Both land with #9. `comboContext` — F3 chain-depth gating and F8
-recent-history exclusion — is live.
+**Implementation status:** L3 shipped in full with #8 (Sprint 2); the two
+deferred terms — `moves matching current tactic` and `behaviorMod` — went live
+with #9 (Sprint 3). The tactic filter intersects the eligible set with moves
+expressing the current L2 intent, falling back to the un-filtered eligible set
+when the intersection is empty (the §4 fallback rule). `behaviorMod` weights
+top-level picks from the rolling signals via per-boss data rules
+(`src/game/boss/weighting.ts`), F4-clamped. Combo-link weights remain
+authored-only for now — extending behaviorMod to branch weights is open
+tuning work, not structure.
 
 Boss-specific tuning constants introduced by #8
 (`src/game/boss/bossTuning.ts`) — flat v1 numbers, not yet spec'd elsewhere:
@@ -145,6 +145,41 @@ Boss-specific tuning constants introduced by #8
 | `CRITICAL_HIT_MULTIPLIER` | 2× | HP-damage multiplier during the posture critical window |
 | `BOSS_MOVE_SPEED` | 2 u/tick | Approach/retreat speed while free |
 | `BOSS_PREFERRED_RANGE` | 70 u | Distance the boss holds when not mid-sequence |
+
+L2/tracker constants introduced by #9 (`behaviorTracker.ts`, `tactics.ts`):
+
+| Constant | Value | What |
+|---|---|---|
+| `TRACKER_WINDOW_SECONDS` | 20 s | Rolling telemetry window (§5), ring of 1s buckets |
+| `PANIC_ROLL_WINDOW_TICKS` | 10 | Roll within this of a boss startup = panic roll |
+| `CAMPING_DISTANCE` | 140 u | Beyond this counts toward rangeCamping/turtling |
+| `AGGRESSION_SATURATION_APS` | 1.5 | Attacks/sec that saturate the aggression signal |
+| `PUNISH_COOLDOWN_TICKS` | 240 (4 s) | F5 — max one triggered punish per window |
+| `TACTIC_MIN/MAX_HOLD_TICKS` | 120–300 (2–5 s) | Intent re-scoring cadence |
+| `TACTIC_SOFTMAX_TEMPERATURE` | 0.35 | Decisiveness of tactic selection (§10) |
+| `TURTLE_SATURATION_FRACTION` | 0.5 | Blocking/camping half the window saturates turtleIndex & rangeCamping |
+| `MIN_RATE_WINDOW_SECONDS` | 3 s | Rate signals' denominator floor — early-fight actions can't read as saturated rates |
+| `RANGE_DEADZONE` | 12 u | Movement stops within this of the tactic's target range |
+| `PUNISHABLE_OPENING_RANGE` | 90 u | Max distance a committed player action reads as a PUNISH opening |
+
+Movement is tactic-owned (one authority — `TACTIC_TARGET_RANGE` in
+`bossCombat.ts`): NEUTRAL/REPOSITION hold the preferred pocket (70 u),
+PRESSURE/PUNISH crowd to 45 u, BAIT hovers at 95 u, RECOVER backs off to
+125 u — deliberately below `CAMPING_DISTANCE` (140), so the boss's own
+retreat can never make the tracker read the player as camping. The
+free-movement `approach()` walks toward the current intent's target range;
+L2 REPOSITION expresses itself through this table rather than through a
+second movement system. **RECOVER is movement-only**: while it is the
+current intent the boss starts no new sequences — §3's "back off, guard,
+low aggression" beat, enforced in `step()` rather than through move tags.
+
+**Shipped v1 tactic semantics vs the §3 table:** the Enter-when conditions
+are expressed through the score modifiers below §3 (signals raise a tactic's
+softmax score), but the per-tactic *Exit-when* conditions are **not yet
+implemented** — every tactic holds for a drawn 2–5 s window, then re-scores.
+PUNISH's trigger + F5 rate limit is the one live trigger/exit mechanism.
+Condition-based exits (REPOSITION ends on reaching the band, RECOVER on
+poise recovery) are open work, not silently shipped.
 
 ## 5. The Behavior Tracker (adaptation input)
 

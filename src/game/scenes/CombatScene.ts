@@ -16,11 +16,14 @@ import { isCriticalWindowOpen } from '../combat/posture';
 import {
   createBossState,
   isBossStaggered,
+  isPunishableOpening,
+  observeTrackerEvent,
   resolveBossHit,
   step as bossStep,
   type BossCombatState,
   type BossStepContext,
 } from '../boss/bossCombat';
+import { margitWeightRules } from '../boss/weighting';
 import { margitMoves, margitTopLevelMoveIds } from '../boss/margitMoves';
 import { BOSS_BASE_MAX_HP } from '../boss/bossTuning';
 import type { MoveDef } from '../boss/types';
@@ -98,6 +101,10 @@ export class CombatScene extends Phaser.Scene {
   /** Derived layout, recomputed by relayout() whenever the canvas resizes. */
   private groundY = 0;
 
+  /** False until the player first acts (moves/attacks/dodges/blocks) — while
+   * false, resizes re-spawn entities at their ratio positions. */
+  private fightStarted = false;
+
   constructor() {
     super('combat');
   }
@@ -122,6 +129,13 @@ export class CombatScene extends Phaser.Scene {
       minX: ARENA_MARGIN,
       maxX: this.scale.width - ARENA_MARGIN,
       lastPlayerAction: null,
+      weightRules: margitWeightRules,
+      observed: {
+        playerBlocking: false,
+        dodgeStarted: false,
+        attackStarted: false,
+        punishableOpening: false,
+      },
     };
 
     this.groundBar = this.add.rectangle(0, 0, 0, 4, 0x8a7a5c);
@@ -190,16 +204,24 @@ export class CombatScene extends Phaser.Scene {
     this.relayout(gameSize.width, gameSize.height);
   }
 
-  /** Recompute every size-dependent position. Entity x is clamped, not reset. */
+  /** Recompute every size-dependent position. Mid-fight, entity x is clamped
+   * (never teleported); before the fight begins, entities re-spawn at their
+   * ratio positions — the canvas's create()-time width can be a pre-layout
+   * junk value (tiny), and clamping alone would leave both entities stuck in
+   * a corner spawned from it. */
   private relayout(width: number, height: number): void {
     this.groundY = height - GROUND_MARGIN_BOTTOM;
 
     this.ctx.minX = ARENA_MARGIN;
     this.ctx.maxX = width - ARENA_MARGIN;
-    this.sim.x = Math.max(this.ctx.minX, Math.min(this.ctx.maxX, this.sim.x));
-
     this.bossCtx.minX = ARENA_MARGIN;
     this.bossCtx.maxX = width - ARENA_MARGIN;
+
+    if (!this.fightStarted) {
+      this.sim.x = width * PLAYER_START_X_RATIO;
+      this.boss.x = width * BOSS_START_X_RATIO;
+    }
+    this.sim.x = Math.max(this.ctx.minX, Math.min(this.ctx.maxX, this.sim.x));
     this.boss.x = Math.max(this.bossCtx.minX, Math.min(this.bossCtx.maxX, this.boss.x));
 
     this.groundBar.setPosition(width / 2, this.groundY + 2);
@@ -251,6 +273,12 @@ export class CombatScene extends Phaser.Scene {
     // keypress can't launch several actions.
     while (this.accumulator >= TICK_MS) {
       const input = this.sampleInput(firstTick);
+      if (
+        !this.fightStarted &&
+        (input.moveX !== 0 || input.light || input.heavy || input.dodge || input.block)
+      ) {
+        this.fightStarted = true;
+      }
       const playerResult = step(this.sim, input, this.ctx);
       this.sim = playerResult.state;
       for (const e of playerResult.events) {
@@ -258,10 +286,29 @@ export class CombatScene extends Phaser.Scene {
       }
 
       this.bossCtx.playerX = this.sim.x;
+      // This tick's player telemetry for the behavior tracker (BOSS_AI.md §5).
+      // Starts come from the sim's own action:start events — the authoritative
+      // signal — never re-derived from state shape (tickInPhase resets on
+      // every phase change, so shape-probing counted one dodge three times).
+      this.bossCtx.observed = {
+        playerBlocking: isBlocking(this.sim),
+        dodgeStarted: playerResult.events.some(
+          (e) => e.type === 'action:start' && e.id === 'dodge',
+        ),
+        attackStarted: playerResult.events.some(
+          (e) => e.type === 'action:start' && (e.id === 'light' || e.id === 'heavy'),
+        ),
+        // One shared definition of an opening (engine layer) — the headless
+        // bot harness (#14) exercises PUNISH through the same predicate.
+        punishableOpening: isPunishableOpening(this.sim, Math.abs(this.boss.x - this.sim.x)),
+      };
       const bossResult = bossStep(this.boss, this.bossCtx);
       this.boss = bossResult.state;
       for (const e of bossResult.events) {
         if (e.type === 'move:active') this.resolveBossAttackOnPlayer(e.move);
+        // The boss acting also marks the fight as begun — a pre-input resize
+        // must not teleport a boss that's already mid-approach/mid-move.
+        if (e.type === 'move:start') this.fightStarted = true;
       }
 
       this.accumulator -= TICK_MS;
@@ -294,6 +341,11 @@ export class CombatScene extends Phaser.Scene {
       postureDamage: dmg.poise + punishBonus,
     });
     this.boss = result.state;
+    // The tracker learns which recoveries the player punishes (§5 punishPattern).
+    this.boss = observeTrackerEvent(this.boss, {
+      type: 'hit:landed',
+      onBossRecovery: punishBonus > 0,
+    });
     this.bossHitFlash = result.wasCritical ? 16 : 8;
   }
 
@@ -322,6 +374,7 @@ export class CombatScene extends Phaser.Scene {
     // reads visually via the i-frame alpha, so it doesn't also flash.
     if (result.result === 'dodged') {
       this.bossCtx.lastPlayerAction = 'dodge';
+      this.boss = observeTrackerEvent(this.boss, { type: 'dodge:iframe-success' });
     } else if (result.result === 'blocked') {
       this.bossCtx.lastPlayerAction = 'block';
       this.playerHitFlash = 8;
@@ -411,7 +464,7 @@ export class CombatScene extends Phaser.Scene {
         : b.action
           ? `${b.action.moveId}/${b.action.phase}`
           : 'idle';
-    const status = `MARGIT — ${mode}   hp:${b.hp.toFixed(0)}   posture:${b.posture.value.toFixed(0)}`;
+    const status = `MARGIT — ${mode}   intent:${b.tactic.current}   hp:${b.hp.toFixed(0)}   posture:${b.posture.value.toFixed(0)}`;
     if (status !== this.lastBossStatus) {
       this.bossStatusText.setText(status);
       this.lastBossStatus = status;
