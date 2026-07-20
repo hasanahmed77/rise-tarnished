@@ -71,9 +71,70 @@ Sequenced #9 → #10 (the property tests exercise the finished adaptation).
   (S2 evidence). 102 tests. Also fixed a latent spawn bug (create()-time
   canvas width can be pre-layout junk; pre-fight relayouts now respawn at
   ratio positions).
+- **07-18 (cont.):** Full multi-agent review on #9 found 5 real correctness
+  bugs (dodge triple-counted from state-shape probing; RECOVER's own backoff
+  self-inflated the camping signal; PUNISH triggered on a live hitbox instead
+  of a whiff; RECOVER never suppressed attacks; an early-fight rate spike
+  saturated aggression) — all fixed, 108 tests, merged. Shipped #10: fairness
+  invariants proven via fast-check (pure clamp properties + 5 adversarial bots
+  × 5 seeds × 2500 ticks = 62.5k decisions, zero violations). Sprint goal met.
+  113 tests total.
 
 ## Review (end of sprint)
-_(pending)_
+
+**Goal met: yes.** Margit reads the player and shifts intent — 7 rolling
+signals, 6 tactics with PUNISH priority, behaviorMod wired into L3 selection —
+and the fairness net (F1–F5, F7, F8) is proven under genuinely adversarial
+simulation, not passive observation. S2 (perceptibility) has its first hard
+evidence: a roll-spamming bot measurably sees more delayed strikes than a calm
+player across seeds.
+
+Delivered:
+- `behaviorTracker.ts` — rolling 20s window, ring of 1s buckets, 7 signals.
+- `tactics.ts` — L2 softmax intent machine, PUNISH trigger + F5 rate limit.
+- `weighting.ts` — F4-clamped move-level behaviorMod from per-boss data rules.
+- L3 wiring: tactic filter (with spec fallback) + behaviorMod, both live.
+- Movement unified under one authority (`TACTIC_TARGET_RANGE`), closing the
+  seam #26's review flagged.
+- `fairness.property.test.ts` — property-based proof, 62.5k+ adversarial
+  decisions, zero invariant violations.
+- 113 tests total; both PRs code-reviewed (#9 found and fixed 5 real bugs).
+
+Not in scope / deferred: LLM reweighting, the bot-sim harness as a product
+(#14), win/lose resolution, phase 2, signal tuning for feel.
 
 ## Retro (end of sprint)
-_(pending)_
+
+**What worked**
+- The review earned its cost again, decisively: #9's 8-angle pass (with 2
+  agents relaunched after a session-limit hiccup) found the dodge triple-count
+  and the RECOVER feedback loop — both would have shipped invisibly, since
+  every existing test passed and the sandbox looked fine. Bugs in *signal
+  computation* don't crash anything; they just make the adaptation quietly
+  wrong, which is exactly the class of bug a human playtester struggles to
+  notice ("the boss feels a little off") but a reviewer reading the math
+  catches immediately.
+- Naming the #26 seam (approach()/REPOSITION) as a sprint risk up front meant
+  it got resolved as a first-class part of #9 instead of another deferred
+  finding — the plan's "risks / watch-fors" section is pulling real weight.
+- Sequencing #10 after #9 (not in parallel) meant the property tests exercised
+  the *fixed* adaptation code, not the buggy first draft — the fairness suite
+  shows zero violations because the bugs it would have caught were already
+  gone.
+
+**What didn't**
+- Same session-limit interruption pattern as Sprint 2's review — two finder
+  agents died mid-run and needed relaunching. Not a process failure (the retry
+  worked, nothing was lost), but a recurring cost worth naming again.
+- The dodge triple-count bug traces back to a design shortcut in #9's first
+  draft: deriving "did the player just dodge" from state *shape* instead of
+  the sim's own `action:start` events, which already existed and already
+  disambiguated this exactly. Cheaper to reach for the existing event stream
+  first next time a scene needs "did X just happen."
+
+**One change for next sprint**
+- When a scene needs to know "did the player just do X," check for an
+  existing sim event before re-deriving it from state shape — the sim usually
+  already published it.
+
+**Sprint status: CLOSED.**
