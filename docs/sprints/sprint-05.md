@@ -31,7 +31,7 @@ new schema/security surface, not just game logic — sized accordingly.
 
 ## Committed scope
 
-- [ ] **#11** Win/lose resolution + rune reward — size L, p1
+- [x] **#11** Win/lose resolution + rune reward — size L, p1
       *Boss death or player death ends the attempt cleanly and triggers a
       resolution screen; on a kill, rune reward is computed and persisted and
       the region-unlock flag is set; on a death, the outcome is persisted with
@@ -135,7 +135,87 @@ new schema/security surface, not just game logic — sized accordingly.
   + 19/19 RLS/RPC tests after all fixes.
 
 ## Review (end of sprint)
-_(pending)_
+
+**Goal met: yes.** A fight against Margit now ends for real — win or die,
+runes earned and persisted, region unlock set on a kill, the attempt
+recorded — and none of it happens through a client write. `player_stats`/
+`player_progress`/`attempt_logs` stay exactly as read-only as Sprint 4's
+review demanded; the entire state transition lives in one SECURITY DEFINER
+RPC (`resolve_attempt`) that computes the reward itself and validates the
+boss is actually reachable before touching anything.
+
+Delivered:
+- CombatScene detects the terminal HP state via a pure, unit-tested
+  `determineFightOutcome()` and emits the (previously defined, never fired)
+  `fight:outcome` bridge event.
+- `resolve_attempt`: idempotent via a client-generated attempt id, reward
+  sourced from a data-driven `bosses` table (bosses #2-4 need only an
+  INSERT, never a code change), a reachability guard that keeps
+  `current_region` monotonic, and `region_unlocked` persisted rather than
+  re-derived so a retried call reports it accurately.
+- A resolution overlay in `GameCanvas` showing the optimistic client
+  estimate while the RPC resolves, then the authoritative server numbers.
+- `attempt_logs` tightened to client-read-only (Sprint 4 predates this RPC
+  and left it client-INSERT-able) — `resolve_attempt` is now the only
+  legitimate writer.
+- 19 RLS/RPC integration tests, 4 new unit tests (`reward.ts`,
+  `outcome.ts`), full local + CI gate green throughout.
+
+Not in scope / deferred: #12 (stat spend — now has something real to
+spend), #13 (LLM recap — now has real attempt rows to read), boss #2-4,
+the per-decision event log inside `attempt_logs.log` (still `{}`, spec-only
+per BOSS_AI.md §8).
 
 ## Retro (end of sprint)
-_(pending)_
+
+**What worked**
+- **The review found bugs that were structurally invisible at merge time.**
+  The region-regression/skip-ahead bug couldn't have been caught by any test
+  run against the actual shipped state — only one boss exists, so there was
+  nothing to regress *to*. It took a reviewer reading the SQL and asking "what
+  happens when a second row exists" to find it. This is exactly the class of
+  bug local dev and even a real browser playthrough structurally cannot catch
+  (everything genuinely worked, for the only boss that existed) — a second
+  confirmation, after Sprint 4, that this project's review discipline is
+  earning its cost on real, not hypothetical, defects.
+- **Fixing the idempotency-replay bug the same way rune_delta already worked**
+  (persist the fact once, read it back, never re-derive) turned three
+  independent review findings pointing at the same code into one clean fix,
+  rather than three patches. Recognizing "this is the same shape of bug as
+  something already solved two lines up" was cheaper than treating each
+  finding in isolation.
+- **Local Docker being fixed mid-session changed the actual working pattern**,
+  not just its speed: the SQL bugs found in review were fixed and reverified
+  in a normal edit-test loop against real Postgres, not through repeated CI
+  round-trips like Sprint 4's migration work required. Worth protecting going
+  forward — Docker breaking again would be a real velocity cost now that it's
+  been felt both ways.
+- **A stray user question ("is our DB structure normalized?") caught a real
+  design smell** (the redundant `health`/`vitality` stat) that no review pass
+  was ever going to flag, since it wasn't wrong, just unnecessary. Domain
+  questions from the person who actually knows what the game should feel like
+  remain a distinct, valuable review channel that automated passes don't
+  replace.
+
+**What didn't**
+- **The `/code-review` Skill tool refused to delegate** ("disable-model-invocation")
+  after working identically for the same skill earlier in the same session.
+  Recovered by running the exact same 8-angle/verify process manually — no
+  findings were lost — but it's a tooling inconsistency worth naming rather
+  than silently working around every time it recurs.
+- **The `bosses`/`region_unlocked` design wasn't gotten right on the first
+  pass**, despite the whole point of the data-driven `bosses` table being to
+  make bosses #2-4 safe by construction. The gap wasn't in the mechanism
+  (grants, idempotency, the table itself) — it was a missing invariant
+  (*reachability*) that only became obvious once someone asked "what if a
+  second row existed." Worth a standing question for any future
+  progress-mutating RPC: not just "does this validate its inputs" but "does
+  this validate the caller is even allowed to be here."
+
+**One change for next sprint**
+- When a design explicitly claims something will generalize to N future
+  cases (here: "bosses #2-4 only need an INSERT"), stress-test that claim
+  during the same PR — insert a second row in a test and prove the
+  generalization actually holds, rather than trusting the comment.
+
+**Sprint status: CLOSED.**
