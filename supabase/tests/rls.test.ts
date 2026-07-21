@@ -59,8 +59,11 @@ describe('RLS: cross-user isolation (#5 DoD)', () => {
 
   beforeAll(async () => {
     const suffix = Date.now();
-    userA = await createSignedInUser(`rls-test-a-${suffix}@example.com`);
-    userB = await createSignedInUser(`rls-test-b-${suffix}@example.com`);
+    // Independent users — create in parallel to halve setup round-trips.
+    [userA, userB] = await Promise.all([
+      createSignedInUser(`rls-test-a-${suffix}@example.com`),
+      createSignedInUser(`rls-test-b-${suffix}@example.com`),
+    ]);
   });
 
   afterAll(async () => {
@@ -68,7 +71,7 @@ describe('RLS: cross-user isolation (#5 DoD)', () => {
     await admin.auth.admin.deleteUser(userB.id);
   });
 
-  it("a user CAN read and update their own player_stats (positive case — RLS isn't deny-all)", async () => {
+  it("a user CAN read their own player_stats (positive case — RLS isn't deny-all)", async () => {
     const { data: own, error: readError } = await userA.client
       .from('player_stats')
       .select('*')
@@ -77,12 +80,27 @@ describe('RLS: cross-user isolation (#5 DoD)', () => {
     expect(readError).toBeNull();
     expect(own?.user_id).toBe(userA.id);
     expect(own?.vitality).toBe(10); // matches the sandbox's starting build
+  });
 
-    const { error: updateError } = await userA.client
+  it("player_stats is READ-ONLY to the client: even a user's own-row UPDATE is rejected", async () => {
+    // Authoritative state (runes/stats) is never client-writable — there is no
+    // UPDATE grant for `authenticated`, so this fails at the table-ACL layer
+    // before RLS is even consulted. This is the fix for the "a player can PATCH
+    // their own runes to a billion via the raw REST API" hole: mutations only
+    // ever happen through the server-validated write path (#11/#12).
+    const { error } = await userA.client
       .from('player_stats')
-      .update({ runes: 500 })
+      .update({ runes: 999999 })
       .eq('user_id', userA.id);
-    expect(updateError).toBeNull();
+    expect(error).not.toBeNull();
+    expect(error?.code).toBe('42501'); // permission denied for table
+
+    const { data: unchanged } = await admin
+      .from('player_stats')
+      .select('runes')
+      .eq('user_id', userA.id)
+      .single();
+    expect(Number(unchanged?.runes)).toBe(0); // still the provisioned default
   });
 
   it("player_stats: a user CANNOT read another user's row", async () => {
@@ -94,23 +112,6 @@ describe('RLS: cross-user isolation (#5 DoD)', () => {
     expect(data).toEqual([]);
   });
 
-  it("player_stats: a user CANNOT update another user's row", async () => {
-    const { data, error } = await userB.client
-      .from('player_stats')
-      .update({ runes: 999999 })
-      .eq('user_id', userA.id)
-      .select();
-    expect(error).toBeNull();
-    expect(data).toEqual([]); // matched zero rows — the RLS-filtered set was empty
-
-    const { data: stillOwners } = await admin
-      .from('player_stats')
-      .select('runes')
-      .eq('user_id', userA.id)
-      .single();
-    expect(stillOwners?.runes).toBe(500); // unchanged by B's attempt
-  });
-
   it("player_progress: a user CANNOT read another user's row", async () => {
     const { data, error } = await userB.client
       .from('player_progress')
@@ -118,6 +119,24 @@ describe('RLS: cross-user isolation (#5 DoD)', () => {
       .eq('user_id', userA.id);
     expect(error).toBeNull();
     expect(data).toEqual([]);
+  });
+
+  it("player_progress is READ-ONLY to the client: even a user's own-row UPDATE is rejected", async () => {
+    // Same posture as player_stats — clearing a region is a server-validated
+    // event, not a client write. No UPDATE grant, so this is denied at the ACL.
+    const { error } = await userA.client
+      .from('player_progress')
+      .update({ current_region: 'elden_throne' })
+      .eq('user_id', userA.id);
+    expect(error).not.toBeNull();
+    expect(error?.code).toBe('42501');
+
+    const { data: unchanged } = await admin
+      .from('player_progress')
+      .select('current_region')
+      .eq('user_id', userA.id)
+      .single();
+    expect(unchanged?.current_region).toBe('stormveil'); // still the default
   });
 
   it("attempt_logs: a user CANNOT insert a row impersonating another user's user_id", async () => {
@@ -150,9 +169,11 @@ describe('RLS: cross-user isolation (#5 DoD)', () => {
   });
 
   it("player_builds: a user CANNOT insert, read, or delete another user's build", async () => {
+    // is_active:false — A already has an auto-provisioned active build, and the
+    // one-active-build-per-user unique index would reject a second active one.
     const { data: aBuild, error: insertError } = await userA.client
       .from('player_builds')
-      .insert({ user_id: userA.id, weapon_id: 'starting_sword' })
+      .insert({ user_id: userA.id, weapon_id: 'greatsword', is_active: false })
       .select()
       .single();
     expect(insertError).toBeNull();
@@ -178,16 +199,25 @@ describe('RLS: cross-user isolation (#5 DoD)', () => {
     expect(stillExists?.id).toBe(aBuild!.id); // survived B's delete attempt
   });
 
-  it('new users are auto-provisioned exactly one player_stats and player_progress row (signup trigger)', async () => {
-    const { data: stats } = await admin
-      .from('player_stats')
-      .select('user_id')
-      .eq('user_id', userB.id);
-    const { data: progress } = await admin
-      .from('player_progress')
-      .select('user_id')
-      .eq('user_id', userB.id);
+  it('new users are auto-provisioned one player_stats, player_progress, and active player_builds row (signup trigger)', async () => {
+    const [{ data: stats }, { data: progress }, { data: builds }] = await Promise.all([
+      admin.from('player_stats').select('user_id').eq('user_id', userB.id),
+      admin.from('player_progress').select('user_id').eq('user_id', userB.id),
+      admin.from('player_builds').select('id, is_active').eq('user_id', userB.id),
+    ]);
     expect(stats).toHaveLength(1);
     expect(progress).toHaveLength(1);
+    expect(builds).toHaveLength(1);
+    expect(builds?.[0].is_active).toBe(true); // a starting loadout, ready to read
+  });
+
+  it('player_builds: at most one active build per user (unique partial index)', async () => {
+    // userB has exactly its auto-provisioned active build; a second active one
+    // must be rejected by player_builds_one_active_per_user.
+    const { error } = await userB.client
+      .from('player_builds')
+      .insert({ user_id: userB.id, weapon_id: 'greatsword', is_active: true });
+    expect(error).not.toBeNull();
+    expect(error?.code).toBe('23505'); // unique_violation
   });
 });

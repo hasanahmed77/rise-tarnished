@@ -106,6 +106,20 @@ auth setup comes first).
   `supabase/setup-cli`), rather than block on an environment repair outside
   the project.
 
+- **07-21 (#5 review):** CI's `rls` job (first real run vs. real Postgres)
+  surfaced three migration bugs beyond the local gates — a `GITHUB_ENV`
+  quoting bug, a missing table GRANT to `authenticated`, and another to
+  `service_role` (BYPASSRLS ≠ table grant) — all fixed with CI as the proof.
+  Then multi-agent `/code-review` (8 finder angles) found a real security
+  hole: RLS gates *rows*, not *values*, so the UPDATE policies let a signed-in
+  player PATCH their own runes/stats/progress to anything via the raw REST API.
+  Fixed by making authoritative state (stats, progress) client-read-only —
+  mutations move to the server-validated write path (#11/#12). Also hardened:
+  `ALTER DEFAULT PRIVILEGES` as the durable grants baseline (no per-table GRANT
+  to forget), one-active-build unique index, default-build provisioning,
+  attempt_logs sanity bounds, `updated_at` triggers, documented realtime
+  exclusion. Conventions recorded in ADR-0003.
+
 ## Review (end of sprint)
 _(pending)_
 
