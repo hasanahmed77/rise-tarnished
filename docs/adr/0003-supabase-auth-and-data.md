@@ -43,9 +43,12 @@ the hard way while building the first one:
 3. **Provision every per-user singleton on signup.** The `handle_new_user`
    trigger seeds stats, progress, and a default active build, so no first-read
    ever hits a missing row.
-4. **Append-only logs are untrusted telemetry.** `attempt_logs` rows are
-   client-written and only sanity-bounded by CHECKs; nothing authoritative
-   (the real runes balance) is ever derived from them.
+4. ~~Append-only logs are untrusted telemetry~~ **Superseded by `#11`.**
+   `attempt_logs` was client-INSERT-able (Sprint 4, before any RPC existed to
+   own it); once `resolve_attempt` became the real writer, the direct INSERT
+   grant was revoked — a client-writable row an RPC's idempotency guard also
+   trusts is a hole (see point 5's last bullet). It's now client-read-only,
+   same posture as `player_stats`/`player_progress`.
 5. **Writing through a SECURITY DEFINER RPC (`#11`'s `resolve_attempt`)
    needs its own care, beyond the table rules above:**
    - **Functions default PUBLIC-executable** — the opposite of tables, which
@@ -67,6 +70,22 @@ the hard way while building the first one:
      reuse (or guess) an id — the function's own logic is the only boundary
      left once RLS is out of the picture. Caught in `#11`'s own review before
      merge; worth stating explicitly so the next RPC doesn't reopen it.
+   - **A replay branch is only as trustworthy as the row it reads.** If the
+     table it reads from is (or ever was) client-writable, a client can
+     pre-seed a row at a self-chosen id and have the replay branch echo it
+     straight back as if it were a genuine prior result. The fix isn't in the
+     RPC — it's ensuring nothing but the RPC itself can ever write that table
+     (point 4 above).
+   - **State transitions need a reachability check, not just a validity
+     check.** Validating "is this a real boss" isn't the same as validating
+     "is this boss reachable to *this* player right now." A transition RPC
+     that advances progress (here: `current_region`) must verify the
+     requested step is either the caller's actual current step or one
+     they've already passed — otherwise a later addition (boss #2) can
+     silently skip or regress progress through a path that was always
+     structurally possible, just unreachable until more data existed to
+     trigger it. Caught in `#11`'s own review, unreachable with one boss at
+     merge time but fixed at the root rather than deferred.
 
 ## Alternatives considered
 - **NextAuth + self-hosted Postgres** — rejected: more moving parts and ops for a

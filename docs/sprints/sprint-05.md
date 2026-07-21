@@ -115,6 +115,24 @@ new schema/security surface, not just game logic — sized accordingly.
   Postgres — both win and lose paths, correct reward/region-unlock, confirmed
   against the database directly, not just the UI. Local Docker being fixed
   today made this whole loop fast — no CI round-trips needed to iterate.
+- **07-21 (#11 review):** `/code-review`'s 8-angle pass (self-run manually —
+  the skill tool declined to delegate this time) found 3 more real SQL bugs
+  beyond what local dev caught: `current_region` could regress or skip ahead
+  since nothing checked a boss's region against the player's actual frontier
+  (unreachable with one boss, but structurally live the moment boss #2's row
+  is added — fixed with a reachability guard); `region_unlocked` wasn't
+  recomputed on an idempotent replay, always reporting `false` even when the
+  original call did unlock a region (fixed by persisting it as a real column
+  instead of re-deriving it); and `attempt_logs` still allowed direct client
+  INSERT from Sprint 4 (before this RPC existed to own it), letting a client
+  pre-seed a row the replay branch would trust and echo back (self-targeting
+  only, no real currency impact — fixed by revoking that grant, since
+  resolve_attempt is now the only legitimate writer). Also fixed a genuine
+  CLAUDE.md violation the conventions angle caught: win/lose determination
+  lived only inside the Phaser scene class with zero test coverage of the
+  double-KO tie-break rule — extracted to `determineFightOutcome()`
+  (`game/attempt/outcome.ts`), now unit-tested. Re-verified full local gate
+  + 19/19 RLS/RPC tests after all fixes.
 
 ## Review (end of sprint)
 _(pending)_

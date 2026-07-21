@@ -42,13 +42,18 @@ export function GameCanvas() {
     const offOutcome = bridge.toShell.on('fight:outcome', (outcome) => {
       setResolution({ status: 'resolving', outcome });
       void resolveAttempt(outcome).then(
-        (resolved) => setResolution({ status: 'resolved', outcome, resolved }),
-        (err: unknown) =>
+        (resolved) => {
+          if (disposed) return;
+          setResolution({ status: 'resolved', outcome, resolved });
+        },
+        (err: unknown) => {
+          if (disposed) return;
           setResolution({
             status: 'error',
             outcome,
             message: err instanceof Error ? err.message : 'Failed to save this attempt.',
-          }),
+          });
+        },
       );
     });
 
@@ -130,7 +135,10 @@ function ResolutionOverlay({ state }: { state: ResolutionState }) {
           {victory ? 'MARGIT, THE FELL OMEN — FALLEN' : 'YOU DIED'}
         </h2>
         {state.status === 'resolving' && (
-          <p className="text-sm text-neutral-400">saving attempt…</p>
+          <p className="text-sm text-neutral-400">
+            {state.outcome.estimatedRuneDelta > 0 ? `~+${state.outcome.estimatedRuneDelta}` : 0}{' '}
+            runes — saving attempt…
+          </p>
         )}
         {state.status === 'resolved' && (
           <>

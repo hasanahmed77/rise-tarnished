@@ -158,33 +158,32 @@ describe('RLS: cross-user isolation (#5 DoD)', () => {
     expect(unchanged?.current_region).toBe('stormveil'); // still the default
   });
 
+  it('attempt_logs is READ-ONLY to the client: even inserting your own row is rejected', async () => {
+    // #11: resolve_attempt is now the only legitimate writer (its idempotency
+    // guard depends on attempt_logs rows only ever coming from itself) — the
+    // direct INSERT grant from Sprint 4 is revoked, so this fails at the
+    // table-ACL layer, same posture as player_stats/player_progress.
+    const { error } = await userA.client.from('attempt_logs').insert({
+      user_id: userA.id,
+      boss_id: 'margit',
+      result: 'death',
+      duration_ticks: 100,
+    });
+    expect(error).not.toBeNull();
+    expect(error?.code).toBe('42501'); // permission denied for table
+  });
+
   it("attempt_logs: a user CANNOT insert a row impersonating another user's user_id", async () => {
+    // Same rejection as the own-row case above (no INSERT grant at all) — kept
+    // as its own case since impersonation is the scenario that actually matters.
     const { error } = await userB.client.from('attempt_logs').insert({
       user_id: userA.id, // impersonation attempt
       boss_id: 'margit',
       result: 'death',
       duration_ticks: 100,
     });
-    expect(error).not.toBeNull(); // the WITH CHECK clause rejects it
-  });
-
-  it('attempt_logs: a user CAN insert their own row, and only sees their own rows', async () => {
-    const { error: insertError } = await userA.client.from('attempt_logs').insert({
-      user_id: userA.id,
-      boss_id: 'margit',
-      result: 'death',
-      duration_ticks: 4200,
-    });
-    expect(insertError).toBeNull();
-
-    const { data: aSees } = await userA.client.from('attempt_logs').select('*');
-    expect(aSees?.length).toBeGreaterThanOrEqual(1);
-
-    const { data: bSees } = await userB.client
-      .from('attempt_logs')
-      .select('*')
-      .eq('user_id', userA.id);
-    expect(bSees).toEqual([]);
+    expect(error).not.toBeNull();
+    expect(error?.code).toBe('42501');
   });
 
   it("player_builds: a user CANNOT insert, read, or delete another user's build", async () => {
@@ -331,11 +330,17 @@ describe('resolve_attempt RPC (#11 DoD)', () => {
     const first = await call();
     expect(first.error).toBeNull();
     expect(first.data?.rune_delta).toBe(500);
+    expect(first.data?.region_unlocked).toBe(true); // userB's first victory
 
     const second = await call();
     expect(second.error).toBeNull();
     expect(second.data?.rune_delta).toBe(500);
     expect(second.data?.total_runes).toBe(first.data?.total_runes); // not paid again
+    // The replay reads back the *persisted* fact, not a live re-derivation —
+    // re-deriving "is the region cleared now" would wrongly say false (it's
+    // already cleared by the first call), which is a different question from
+    // "did resolving *this* attempt unlock it" (yes, and that stays true).
+    expect(second.data?.region_unlocked).toBe(true);
 
     const { data: stats } = await admin
       .from('player_stats')
@@ -343,6 +348,66 @@ describe('resolve_attempt RPC (#11 DoD)', () => {
       .eq('user_id', userB.id)
       .single();
     expect(Number(stats?.runes)).toBe(first.data?.total_runes); // one payout, not two
+  });
+
+  it('re-fighting an already-cleared boss pays out again but never regresses region progress', async () => {
+    // userA cleared stormveil in the earlier victory test and is now at
+    // current_region='redmane'. Re-resolving margit (stormveil) must be
+    // allowed (already-cleared bosses stay fightable) but must NOT unlock
+    // again or move current_region — the bug this guards against: an
+    // unconditional current_region overwrite would otherwise regress it back
+    // to stormveil's successor (redmane) even though the player is already
+    // there or beyond.
+    const before = await admin
+      .from('player_progress')
+      .select('current_region, regions_cleared')
+      .eq('user_id', userA.id)
+      .single();
+    expect(before.data?.current_region).toBe('redmane');
+
+    const { data, error } = await callResolveAttempt(userA.client, {
+      p_attempt_id: crypto.randomUUID(),
+      p_boss_id: 'margit',
+      p_result: 'victory',
+      p_duration_ticks: 100,
+    });
+    expect(error).toBeNull();
+    expect(data?.rune_delta).toBe(500); // still paid — it's a real win
+    expect(data?.region_unlocked).toBe(false); // but nothing new to unlock
+
+    const after = await admin
+      .from('player_progress')
+      .select('current_region, regions_cleared')
+      .eq('user_id', userA.id)
+      .single();
+    expect(after.data?.current_region).toBe('redmane'); // unchanged, not regressed
+    expect(after.data?.regions_cleared).toEqual(['stormveil']); // no duplicate entry
+  });
+
+  it('rejects resolving a boss the player has not reached yet', async () => {
+    // A second boss, mapped to a region beyond either test user's current
+    // frontier (both are at 'stormveil' or 'redmane' at this point) — proves
+    // the reachability guard, not just reachable via the single shipped boss.
+    await admin
+      .from('bosses')
+      .insert({ id: 'test-unreachable-boss', region_id: 'haligtree', rune_reward: 999 });
+
+    const { error } = await callResolveAttempt(userB.client, {
+      p_attempt_id: crypto.randomUUID(),
+      p_boss_id: 'test-unreachable-boss',
+      p_result: 'victory',
+      p_duration_ticks: 100,
+    });
+    expect(error).not.toBeNull();
+
+    const { data: stats } = await admin
+      .from('player_stats')
+      .select('runes')
+      .eq('user_id', userB.id)
+      .single();
+    expect(Number(stats?.runes)).not.toBe(999); // no payout from the rejected call
+
+    await admin.from('bosses').delete().eq('id', 'test-unreachable-boss');
   });
 
   it("rejects reusing another user's attempt id rather than leaking their result", async () => {
@@ -383,5 +448,26 @@ describe('resolve_attempt RPC (#11 DoD)', () => {
       })
       .single();
     expect(error).not.toBeNull();
+  });
+
+  it('attempt_logs rows created via resolve_attempt: a user sees only their own', async () => {
+    // The only legitimate source of attempt_logs rows now — confirms the
+    // existing SELECT RLS policy still holds now that INSERT is RPC-only.
+    const { error: insertError } = await callResolveAttempt(userA.client, {
+      p_attempt_id: crypto.randomUUID(),
+      p_boss_id: 'margit',
+      p_result: 'death',
+      p_duration_ticks: 4200,
+    });
+    expect(insertError).toBeNull();
+
+    const { data: aSees } = await userA.client.from('attempt_logs').select('*');
+    expect(aSees?.length).toBeGreaterThanOrEqual(1);
+
+    const { data: bSees } = await userB.client
+      .from('attempt_logs')
+      .select('*')
+      .eq('user_id', userA.id);
+    expect(bSees).toEqual([]);
   });
 });

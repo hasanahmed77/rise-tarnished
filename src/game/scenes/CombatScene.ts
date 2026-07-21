@@ -27,6 +27,7 @@ import { margitWeightRules } from '../boss/weighting';
 import { margitMoves, margitTopLevelMoveIds } from '../boss/margitMoves';
 import { BOSS_BASE_MAX_HP, MARGIT_BOSS_ID, MARGIT_RUNE_REWARD } from '../boss/bossTuning';
 import { computeRuneReward, type FightResult } from '../attempt/reward';
+import { determineFightOutcome } from '../attempt/outcome';
 import type { MoveDef } from '../boss/types';
 
 // Renders and drives the fight (issues #6/#7/#8). All rules live in the
@@ -323,13 +324,9 @@ export class CombatScene extends Phaser.Scene {
         if (e.type === 'move:start') this.fightStarted = true;
       }
 
-      // Terminal check last, after both entities have acted this tick — a
-      // simultaneous double-KO favors the player (boss check first).
-      if (this.boss.hp <= 0) {
-        this.reportOutcome('victory');
-      } else if (this.sim.hp <= 0) {
-        this.reportOutcome('death');
-      }
+      // Terminal check last, after both entities have acted this tick.
+      const outcome = determineFightOutcome(this.boss.hp, this.sim.hp);
+      if (outcome) this.reportOutcome(outcome);
 
       this.accumulator -= TICK_MS;
       firstTick = false;

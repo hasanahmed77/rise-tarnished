@@ -30,6 +30,21 @@ create policy "bosses are readable by any signed-in user" on public.bosses
 
 insert into public.bosses (id, region_id, rune_reward) values ('margit', 'stormveil', 500);
 
+-- attempt_logs was, until now, client-INSERT-able directly (Sprint 4 — it
+-- predates this RPC). resolve_attempt is now the only legitimate writer, so
+-- close that door: an attacker could otherwise pre-seed a row at a
+-- self-chosen id with a forged rune_delta, and the idempotency guard below
+-- would trust and echo it back (never touching real currency, but breaking
+-- the "first-recorded outcome wins" guarantee for that attempt id).
+revoke insert on public.attempt_logs from authenticated;
+
+-- Whether resolving THIS attempt is what unlocked its region — a fact about
+-- the attempt, computed once and persisted, so a retried resolve_attempt call
+-- (the whole point of the idempotency guard below) can report it accurately
+-- instead of re-deriving "is the region cleared *now*", which is always true
+-- after the first successful call and would be a different (wrong) answer.
+alter table public.attempt_logs add column region_unlocked boolean not null default false;
+
 -- ---------------------------------------------------------------------------
 -- resolve_attempt — the only path from a finished fight to persisted state.
 -- Idempotent via attempt_logs.id as the dedupe key: the caller (client)
@@ -52,8 +67,11 @@ as $$
 declare
   v_uid uuid := auth.uid ();
   v_region public.region_id;
+  v_current_region public.region_id;
+  v_regions_cleared public.region_id[];
   v_already_cleared boolean;
   v_next_region public.region_id;
+  v_will_unlock boolean;
 begin
   if v_uid is null then
     raise exception 'not authenticated';
@@ -76,14 +94,36 @@ begin
   if p_result = 'death' then
     rune_delta := 0;
   end if;
-  region_unlocked := false;
+
+  select current_region, regions_cleared into v_current_region, v_regions_cleared
+  from public.player_progress
+  where user_id = v_uid;
+
+  v_already_cleared := v_region = any (v_regions_cleared);
+
+  -- Reachability: only the player's current frontier boss, or one they've
+  -- already cleared (re-fights are allowed but never move progress — win or
+  -- lose), may be resolved. Without this, resolving a boss ahead of the
+  -- frontier skips content, and resolving one *behind* an already-advanced
+  -- frontier would regress current_region backward (both unreachable today
+  -- with a single boss/region, but real the moment a second one is added —
+  -- the bosses table is explicitly designed to add those with no RPC change).
+  if not (v_region = v_current_region or v_already_cleared) then
+    raise exception 'boss % is not yet reachable', p_boss_id;
+  end if;
+
+  v_will_unlock := p_result = 'victory' and not v_already_cleared;
+  region_unlocked := v_will_unlock;
 
   -- Idempotency guard: FOUND is true only if this INSERT actually added a
   -- row. A retried call with the same p_attempt_id conflicts on the primary
   -- key, inserts nothing, and falls into the branch below instead of
-  -- re-applying the reward.
-  insert into public.attempt_logs (id, user_id, boss_id, result, duration_ticks, rune_delta)
-  values (p_attempt_id, v_uid, p_boss_id, p_result, p_duration_ticks, rune_delta)
+  -- re-applying the reward. region_unlocked is persisted here precisely so
+  -- that branch can report it accurately instead of guessing.
+  insert into public.attempt_logs (
+    id, user_id, boss_id, result, duration_ticks, rune_delta, region_unlocked
+  )
+  values (p_attempt_id, v_uid, p_boss_id, p_result, p_duration_ticks, rune_delta, v_will_unlock)
   on conflict (id) do nothing;
 
   if not found then
@@ -95,7 +135,7 @@ begin
     -- falls through to the exception below, instead of leaking another
     -- user's rune_delta/total_runes through this RPC's return value — RLS
     -- doesn't apply here (SECURITY DEFINER), so this check IS the boundary.
-    select a.rune_delta, s.runes into rune_delta, total_runes
+    select a.rune_delta, a.region_unlocked, s.runes into rune_delta, region_unlocked, total_runes
     from public.attempt_logs a
     join public.player_stats s on s.user_id = a.user_id
     where a.id = p_attempt_id and a.user_id = v_uid;
@@ -113,11 +153,7 @@ begin
   where user_id = v_uid
   returning runes into total_runes;
 
-  if p_result = 'victory' then
-    select (v_region = any (regions_cleared)) into v_already_cleared
-    from public.player_progress
-    where user_id = v_uid;
-
+  if v_will_unlock then
     -- Next region in the fixed enum order (PRD: four regions, locked order,
     -- no boss select). Indexing past the last element returns null in
     -- Postgres arrays, so the last region correctly leaves current_region
@@ -127,15 +163,10 @@ begin
 
     update public.player_progress
     set
-      regions_cleared = case
-        when v_already_cleared then regions_cleared
-        else array_append (regions_cleared, v_region)
-      end,
+      regions_cleared = array_append (regions_cleared, v_region),
       current_region = coalesce(v_next_region, current_region),
       updated_at = now()
     where user_id = v_uid;
-
-    region_unlocked := not coalesce(v_already_cleared, false);
   end if;
 
   return next;
