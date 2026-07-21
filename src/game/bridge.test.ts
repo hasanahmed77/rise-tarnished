@@ -52,7 +52,7 @@ describe('GameBridge', () => {
     bridge.toShell.emit('game:ready', undefined);
     bridge.toGame.emit('fight:start', {
       bossId: 'margit',
-      build: { vitality: 10, health: 10, dexterity: 10, intelligence: 10 },
+      build: { vitality: 10, dexterity: 10, intelligence: 10 },
     });
 
     expect(shellHandler).not.toHaveBeenCalled();

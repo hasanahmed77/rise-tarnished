@@ -112,7 +112,7 @@ export class CombatScene extends Phaser.Scene {
   create(): void {
     this.sim = createPlayerState(this.scale.width * PLAYER_START_X_RATIO);
     this.ctx = {
-      build: { vitality: 10, health: 10, dexterity: 10, intelligence: 10 },
+      build: { vitality: 10, dexterity: 10, intelligence: 10 },
       minX: ARENA_MARGIN,
       maxX: this.scale.width - ARENA_MARGIN,
     };

@@ -42,16 +42,17 @@ create type public.region_id as enum (
 );
 
 -- ---------------------------------------------------------------------------
--- player_stats — one row per user. Defaults (10/10/10/10) match the sandbox's
+-- player_stats — one row per user. Defaults (10/10/10) match the sandbox's
 -- starting build (src/game/scenes/CombatScene.ts) so a fresh account plays
 -- identically to the current dev sandbox. READ-ONLY to the client (see the
 -- security posture note at the top): runes/stats change only via the
 -- server-validated write path, never a direct client UPDATE.
+-- vitality is the sole survivability stat (max HP derives from it); there is
+-- deliberately no separate "health" stat — HP is derived, not stored.
 -- ---------------------------------------------------------------------------
 create table public.player_stats (
   user_id uuid primary key references auth.users (id) on delete cascade,
   vitality integer not null default 10 check (vitality >= 0),
-  health integer not null default 10 check (health >= 0),
   dexterity integer not null default 10 check (dexterity >= 0),
   intelligence integer not null default 10 check (intelligence >= 0),
   runes bigint not null default 0 check (runes >= 0),

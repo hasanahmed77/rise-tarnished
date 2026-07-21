@@ -24,7 +24,7 @@ import {
 } from './frameData';
 import type { PlayerBuild } from '../bridge';
 
-const BUILD: PlayerBuild = { vitality: 10, health: 10, dexterity: 10, intelligence: 10 };
+const BUILD: PlayerBuild = { vitality: 10, dexterity: 10, intelligence: 10 };
 const CTX: StepContext = { build: BUILD, minX: 0, maxX: 960 };
 
 const NEUTRAL: CombatInput = { moveX: 0, light: false, heavy: false, dodge: false, block: false };

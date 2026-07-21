@@ -84,13 +84,15 @@ meaningful (diminishing returns past the soft cap).
 
 | Stat | Primary effect | Secondary effect | Soft cap |
 |------|----------------|------------------|----------|
-| **Vitality** | +max HP (+6/pt) | +poise (+0.5/pt) | 40 |
-| **Health**¹ | +flask potency (+2%/pt) | +stamina (+2/pt) | 30 |
+| **Vitality** | +max HP (+6/pt) | +poise (+0.5/pt), +stamina (+2/pt) | 40 |
 | **Dexterity** | +light-weapon scaling | +1 i-frame per 8 pts (max +4) | 45 |
 | **Intelligence** | +sorcery scaling | +max FP (+3/pt) | 45 |
 
-¹ Working name per the proposal; consider renaming to *Endurance/Mind* split
-later — flagged as PRD open question.
+Three stats, not four: **Vitality** is the sole survivability stat (HP is
+*derived* from it, never a stored "health" value), and it absorbs the stamina
+scaling the old placeholder "Health" stat carried. Flask potency is flat in v1
+(no stat scales it). This keeps builds legible — one survivability axis, one
+melee axis, one caster axis.
 
 **Damage formula (v1):**
 
