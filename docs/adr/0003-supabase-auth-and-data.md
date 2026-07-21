@@ -46,6 +46,27 @@ the hard way while building the first one:
 4. **Append-only logs are untrusted telemetry.** `attempt_logs` rows are
    client-written and only sanity-bounded by CHECKs; nothing authoritative
    (the real runes balance) is ever derived from them.
+5. **Writing through a SECURITY DEFINER RPC (`#11`'s `resolve_attempt`)
+   needs its own care, beyond the table rules above:**
+   - **Functions default PUBLIC-executable** — the opposite of tables, which
+     default-deny. Every new privileged function needs an explicit
+     `revoke all ... from public` + `grant execute ... to authenticated`, or
+     it's silently callable by anyone signed in (or, worse, by `anon`).
+   - **The client never supplies an amount.** The RPC's parameters select
+     *which* server-side rule applies (a boss id, a result) — never a rune
+     count or unlock flag. There is structurally nothing for a malicious
+     client to override.
+   - **Idempotency via a client-generated id as the dedupe key**, so a retried
+     call (page refresh, dropped connection) can't double-pay: insert on that
+     id with `on conflict do nothing`, branch on whether the insert actually
+     happened.
+   - **Scope the idempotent-replay lookup to the caller.** SECURITY DEFINER
+     bypasses RLS entirely, so a replay branch that looks up "what did this
+     attempt id resolve to" *without* also filtering by the caller's own
+     `auth.uid()` will happily return another user's private data if they
+     reuse (or guess) an id — the function's own logic is the only boundary
+     left once RLS is out of the picture. Caught in `#11`'s own review before
+     merge; worth stating explicitly so the next RPC doesn't reopen it.
 
 ## Alternatives considered
 - **NextAuth + self-hosted Postgres** — rejected: more moving parts and ops for a
