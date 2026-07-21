@@ -13,6 +13,8 @@ import {
   BASE_POISE,
   BLOCK_DAMAGE_MULT,
   BLOCK_STAMINA_PER_HIT,
+  FP_REGEN_DELAY_TICKS,
+  FP_REGEN_PER_TICK,
   FRAME_DATA,
   GUARD_BREAK_STAGGER_TICKS,
   LIGHT_CHAIN_RECOVERY_STEP,
@@ -20,9 +22,15 @@ import {
   MOVE_SPEED,
   POISE_PER_VITALITY,
   POISE_STAGGER_TICKS,
+  SORCERY_POISE_DAMAGE,
+  SORCERY_PROJECTILE_HALF_WIDTH,
+  SORCERY_PROJECTILE_MAX_TICKS,
+  SORCERY_PROJECTILE_SPEED,
   STAMINA_REGEN_DELAY_TICKS,
   STAMINA_REGEN_PER_TICK,
   dodgeIframes,
+  maxFp,
+  sorceryDamage,
   type ActionId,
 } from './frameData';
 import { applyUndefendedHit, tickPoiseDecay } from './poise';
@@ -50,11 +58,26 @@ export interface ActiveAction {
   chainIndex: number;
 }
 
+/** A live sorcery projectile (#40). Travels deterministically in `facing`,
+ * carrying the int-scaled damage computed at spawn, until it hits or fizzles.
+ * Cross-entity hit resolution is the scene's job (as with melee) via the pure
+ * `projectileHits` predicate below. */
+export interface Projectile {
+  id: number;
+  x: number;
+  facing: 1 | -1;
+  ticksAlive: number;
+  /** HP damage locked in at cast time from the caster's intelligence. */
+  damage: number;
+}
+
 export interface PlayerCombatState {
   x: number;
   facing: 1 | -1;
   hp: number;
   stamina: number;
+  /** Focus points — the caster's resource (#40). */
+  fp: number;
   /** null == idle/free (can move and start actions). */
   action: ActiveAction | null;
   /** Accumulated poise damage; decays over time, staggers past threshold. */
@@ -64,15 +87,22 @@ export interface PlayerCombatState {
   staggerTicks: number;
   /** Ticks since stamina was last spent (drives the regen delay). */
   ticksSinceStaminaSpend: number;
+  /** Ticks since FP was last spent (drives FP regen delay). */
+  ticksSinceFpSpend: number;
+  /** In-flight sorcery projectiles, advanced each tick. */
+  projectiles: Projectile[];
+  /** Monotonic id source so the scene can identify a projectile to consume. */
+  nextProjectileId: number;
 }
 
 export interface CombatInput {
   /** Movement intent this tick: -1 left, 0 none, 1 right. */
   moveX: -1 | 0 | 1;
-  /** Edge-triggered attack/dodge intents (true only on the press tick). */
+  /** Edge-triggered attack/dodge/cast intents (true only on the press tick). */
   light: boolean;
   heavy: boolean;
   dodge: boolean;
+  cast: boolean;
   /** Level-triggered: true for every tick the block key is held. */
   block: boolean;
 }
@@ -88,6 +118,8 @@ export type CombatEvent =
   | { type: 'action:start'; id: ActionId; chainIndex: number }
   | { type: 'action:end'; id: ActionId }
   | { type: 'attack:active'; id: 'light' | 'heavy'; chainIndex: number }
+  | { type: 'projectile:spawn'; id: number }
+  | { type: 'projectile:fizzle'; id: number }
   | { type: 'stagger:start'; ticks: number; cause: 'poise' | 'guard-break' }
   | { type: 'stagger:end' };
 
@@ -96,16 +128,22 @@ export interface StepResult {
   events: CombatEvent[];
 }
 
-export function createPlayerState(x = 0): PlayerCombatState {
+export function createPlayerState(x = 0, build?: PlayerBuild): PlayerCombatState {
   return {
     x,
     facing: 1,
     hp: BASE_MAX_HP,
     stamina: BASE_MAX_STAMINA,
+    // Start with a full pool for whatever build is fighting; defaults to the
+    // base pool when no build is supplied (callers that don't cast).
+    fp: build ? maxFp(build.intelligence) : maxFp(0),
     action: null,
     poiseDamage: 0,
     staggerTicks: 0,
     ticksSinceStaminaSpend: STAMINA_REGEN_DELAY_TICKS,
+    ticksSinceFpSpend: FP_REGEN_DELAY_TICKS,
+    projectiles: [],
+    nextProjectileId: 0,
   };
 }
 
@@ -173,9 +211,14 @@ function startAction(
   ctx: StepContext,
   events: CombatEvent[],
 ): void {
-  if (FRAME_DATA[id].stamina > 0) {
-    state.stamina -= FRAME_DATA[id].stamina;
+  const fd = FRAME_DATA[id];
+  if (fd.stamina > 0) {
+    state.stamina -= fd.stamina;
     state.ticksSinceStaminaSpend = 0;
+  }
+  if (fd.fp > 0) {
+    state.fp -= fd.fp;
+    state.ticksSinceFpSpend = 0;
   }
   state.action = {
     id,
@@ -188,7 +231,8 @@ function startAction(
 }
 
 function canAfford(state: PlayerCombatState, id: ActionId): boolean {
-  return state.stamina >= FRAME_DATA[id].stamina;
+  const fd = FRAME_DATA[id];
+  return state.stamina >= fd.stamina && state.fp >= fd.fp;
 }
 
 /** Try to begin a new action from the given input. Returns true if one started. */
@@ -198,9 +242,14 @@ function tryStartFromInput(
   ctx: StepContext,
   events: CombatEvent[],
 ): boolean {
-  // Priority: dodge > heavy > light > block (dodge is the panic-out option).
+  // Priority: dodge > cast > heavy > light > block. Dodge stays the panic-out
+  // option; cast sits above melee since it's the deliberate, own-key commit.
   if (input.dodge && canAfford(state, 'dodge')) {
     startAction(state, 'dodge', 1, ctx, events);
+    return true;
+  }
+  if (input.cast && canAfford(state, 'cast')) {
+    startAction(state, 'cast', 1, ctx, events);
     return true;
   }
   if (input.heavy && canAfford(state, 'heavy')) {
@@ -256,9 +305,49 @@ function advancePhase(
   action.phase = target;
   action.tickInPhase = 0;
   action.phaseLength = phaseLengthFor(action.id, target, action.chainIndex, ctx.build);
-  if (target === 'active' && (action.id === 'light' || action.id === 'heavy')) {
-    events.push({ type: 'attack:active', id: action.id, chainIndex: action.chainIndex });
+  if (target === 'active') {
+    if (action.id === 'light' || action.id === 'heavy') {
+      events.push({ type: 'attack:active', id: action.id, chainIndex: action.chainIndex });
+    } else if (action.id === 'cast') {
+      spawnProjectile(state, ctx, events);
+    }
   }
+}
+
+/** Emit a sorcery projectile from the caster's position, damage locked in
+ * from intelligence at cast time (§6 curve). */
+function spawnProjectile(state: PlayerCombatState, ctx: StepContext, events: CombatEvent[]): void {
+  const id = state.nextProjectileId;
+  state.nextProjectileId += 1;
+  state.projectiles.push({
+    id,
+    x: state.x,
+    facing: state.facing,
+    ticksAlive: 0,
+    damage: sorceryDamage(ctx.build.intelligence),
+  });
+  events.push({ type: 'projectile:spawn', id });
+}
+
+/** Advance every live projectile one tick; drop those that have travelled
+ * their whole lifetime (fizzle). Deterministic — no wall-clock, no RNG — so
+ * replay and the fairness suite are unaffected. */
+function tickProjectiles(state: PlayerCombatState, events: CombatEvent[]): void {
+  if (state.projectiles.length === 0) return;
+  const survivors: Projectile[] = [];
+  for (const p of state.projectiles) {
+    const next: Projectile = {
+      ...p,
+      x: p.x + p.facing * SORCERY_PROJECTILE_SPEED,
+      ticksAlive: p.ticksAlive + 1,
+    };
+    if (next.ticksAlive > SORCERY_PROJECTILE_MAX_TICKS) {
+      events.push({ type: 'projectile:fizzle', id: next.id });
+    } else {
+      survivors.push(next);
+    }
+  }
+  state.projectiles = survivors;
 }
 
 /**
@@ -269,16 +358,30 @@ function advancePhase(
  * recovery.
  */
 export function step(prev: PlayerCombatState, input: CombatInput, ctx: StepContext): StepResult {
-  const state: PlayerCombatState = { ...prev, action: prev.action ? { ...prev.action } : null };
+  // Clone the projectiles array too: spawn/tick mutate it, and step must never
+  // touch the previous tick's state (the sim is value-semantic for replay).
+  const state: PlayerCombatState = {
+    ...prev,
+    action: prev.action ? { ...prev.action } : null,
+    projectiles: [...prev.projectiles],
+  };
   const events: CombatEvent[] = [];
 
-  // Passive per-tick resources (§3/§5): poise damage decays; stamina regens
-  // after the post-spend delay, except while the block stance is up.
+  // Passive per-tick resources (§3/§5/§6): poise damage decays; stamina and FP
+  // regen after their post-spend delays (stamina paused while the guard is up).
   state.poiseDamage = tickPoiseDecay(state.poiseDamage);
   state.ticksSinceStaminaSpend += 1;
   if (state.ticksSinceStaminaSpend >= STAMINA_REGEN_DELAY_TICKS && !isGuardEngaged(state)) {
     state.stamina = Math.min(BASE_MAX_STAMINA, state.stamina + STAMINA_REGEN_PER_TICK);
   }
+  state.ticksSinceFpSpend += 1;
+  if (state.ticksSinceFpSpend >= FP_REGEN_DELAY_TICKS) {
+    state.fp = Math.min(maxFp(ctx.build.intelligence), state.fp + FP_REGEN_PER_TICK);
+  }
+
+  // Projectiles fly independently of the caster — advanced every tick, even
+  // through a stagger or mid-action, before any early return below.
+  tickProjectiles(state, events);
 
   // Staggered: locked out until it runs down. Inputs are ignored entirely.
   if (state.staggerTicks > 0) {
@@ -313,6 +416,34 @@ export function step(prev: PlayerCombatState, input: CombatInput, ctx: StepConte
 
   advancePhase(state, input, ctx, events);
   return { state, events };
+}
+
+/** Pure geometry: does a projectile overlap a target centred at `targetX`
+ * with the given half-width? Cross-entity resolution stays the scene's job
+ * (as with melee's range check), but the *test* is a pure, unit-tested
+ * predicate — no Phaser, no boss module dependency. */
+export function projectileHits(
+  projectile: Projectile,
+  targetX: number,
+  targetHalfWidth: number,
+): boolean {
+  return Math.abs(projectile.x - targetX) <= SORCERY_PROJECTILE_HALF_WIDTH + targetHalfWidth;
+}
+
+/** Poise/posture damage a sorcery hit deals (flat; HP damage rides on each
+ * projectile's own int-scaled `damage`). */
+export const SORCERY_HIT_POISE = SORCERY_POISE_DAMAGE;
+
+/** Return a copy of the state with the named projectiles removed — the scene
+ * calls this after resolving hits so a consumed bolt stops flying. Keeping
+ * the projectile list in player state (not the scene) is what makes the sim
+ * replayable. */
+export function consumeProjectiles(
+  state: PlayerCombatState,
+  ids: ReadonlySet<number>,
+): PlayerCombatState {
+  if (ids.size === 0) return state;
+  return { ...state, projectiles: state.projectiles.filter((p) => !ids.has(p.id)) };
 }
 
 export type HitResult = 'dodged' | 'blocked' | 'hit';
