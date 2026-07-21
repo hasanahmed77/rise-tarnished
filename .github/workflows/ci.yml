@@ -43,3 +43,48 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  rls:
+    name: RLS (local Supabase — never the live project, SDLC §8)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Pin npm
+        run: npm install -g npm@11
+
+      - name: Install
+        run: npm ci
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Applies supabase/migrations/*.sql to a fresh local Postgres — this is
+      # the actual proof the migrations are correct, not just that they parse.
+      - name: Start local Supabase
+        run: supabase start --exclude studio,imgproxy,logflare,vector,pgadmin-schema-diff,pgadmin-http
+
+      # `supabase status -o env` prints shell-quoted lines (KEY="value"), but
+      # GITHUB_ENV takes each line's value literally — piping it straight in
+      # left the quote characters embedded in the value (e.g. SUPABASE_URL
+      # became the 25-char string `"http://127.0.0.1:54321"`, not a valid
+      # URL). Strip the surrounding quotes before exporting.
+      - name: Export local Supabase env
+        run: supabase status -o env | sed -E 's/^([A-Z_]+)="(.*)"$/\1=\2/' >> "$GITHUB_ENV"
+
+      - name: RLS cross-user isolation tests
+        run: npm run test:rls
+        env:
+          SUPABASE_URL: ${{ env.API_URL }}
+          SUPABASE_ANON_KEY: ${{ env.ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ env.SERVICE_ROLE_KEY }}
+
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop

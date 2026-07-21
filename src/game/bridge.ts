@@ -7,7 +7,6 @@
 
 export interface PlayerBuild {
   vitality: number;
-  health: number;
   dexterity: number;
   intelligence: number;
 }

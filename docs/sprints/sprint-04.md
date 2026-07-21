@@ -28,7 +28,7 @@ twice.
       end-to-end in the Next.js shell; session persists across reloads;
       protected routes redirect unauthenticated users; anon key client-side
       only, service key never reaches the browser.*
-- [ ] **#5** Supabase schema + migrations — size M, p1
+- [x] **#5** Supabase schema + migrations — size M, p1
       *Postgres schema for stats, builds/weapons, region progress, attempt
       logs (ADR-0003); migrations checked into the repo, no dashboard-only
       changes; RLS on every user-scoped table, proven by a test that a user
@@ -93,6 +93,32 @@ auth setup comes first).
   authenticated browser — the automation pane's separate unauthenticated
   profile correctly could not complete this leg (no credentials were ever
   entered on the user's behalf, by design).
+- **07-21 (cont.):** #5 built — `supabase/migrations/` (player_stats,
+  player_progress, player_builds, attempt_logs, all RLS-enabled; a
+  SECURITY DEFINER signup trigger auto-provisions stats/progress). RLS DoD
+  ("a test creates two users and asserts cross-user reads/writes fail")
+  written as a real integration test (`supabase/tests/rls.test.ts`, kept
+  separate from the fast unit suite) — 8 cases covering every table's
+  read/write/insert isolation plus the positive same-user case. Hit a second
+  real external-tooling risk: local Docker Desktop was corrupted (image-cache
+  I/O errors) and couldn't be fixed from the terminal — deferred local
+  verification to CI's own clean Docker environment (new `rls` job,
+  `supabase/setup-cli`), rather than block on an environment repair outside
+  the project.
+
+- **07-21 (#5 review):** CI's `rls` job (first real run vs. real Postgres)
+  surfaced three migration bugs beyond the local gates — a `GITHUB_ENV`
+  quoting bug, a missing table GRANT to `authenticated`, and another to
+  `service_role` (BYPASSRLS ≠ table grant) — all fixed with CI as the proof.
+  Then multi-agent `/code-review` (8 finder angles) found a real security
+  hole: RLS gates *rows*, not *values*, so the UPDATE policies let a signed-in
+  player PATCH their own runes/stats/progress to anything via the raw REST API.
+  Fixed by making authoritative state (stats, progress) client-read-only —
+  mutations move to the server-validated write path (#11/#12). Also hardened:
+  `ALTER DEFAULT PRIVILEGES` as the durable grants baseline (no per-table GRANT
+  to forget), one-active-build unique index, default-build provisioning,
+  attempt_logs sanity bounds, `updated_at` triggers, documented realtime
+  exclusion. Conventions recorded in ADR-0003.
 
 ## Review (end of sprint)
 _(pending)_
