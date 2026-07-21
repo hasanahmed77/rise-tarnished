@@ -1,13 +1,22 @@
 import Phaser from 'phaser';
-import type { GameBridge } from '../bridge';
-import { ATTACK_DAMAGE, BASE_MAX_HP, BASE_MAX_STAMINA, POSTURE_MAX } from '../combat/frameData';
+import type { GameBridge, PlayerBuild } from '../bridge';
 import {
+  ATTACK_DAMAGE,
+  BASE_MAX_HP,
+  BASE_MAX_STAMINA,
+  POSTURE_MAX,
+  maxFp,
+} from '../combat/frameData';
+import {
+  consumeProjectiles,
   createPlayerState,
   isBlocking,
   isInvulnerable,
   isStaggered,
+  projectileHits,
   resolveIncomingHit,
   step,
+  SORCERY_HIT_POISE,
   type CombatInput,
   type PlayerCombatState,
   type StepContext,
@@ -60,7 +69,12 @@ const PLAYER_COLORS = {
   block: 0x5a7a9a,
   stagger: 0xe0e0e0,
   hitFlash: 0xf0dede,
+  cast: 0x7a5ad0,
 } as const;
+
+const PROJECTILE_COLOR = 0x9a7af0;
+const PROJECTILE_W = 18;
+const PROJECTILE_H = 10;
 
 const BOSS_COLORS = {
   idle: 0x6b2a3a,
@@ -97,8 +111,12 @@ export class CombatScene extends Phaser.Scene {
   private hintText!: Phaser.GameObjects.Text;
   private hpBar!: Phaser.GameObjects.Rectangle;
   private staminaBar!: Phaser.GameObjects.Rectangle;
+  private fpBar!: Phaser.GameObjects.Rectangle;
   private statusText!: Phaser.GameObjects.Text;
   private lastStatus = '';
+
+  /** Reused rectangle pool for rendering in-flight sorcery projectiles. */
+  private projectileSprites: Phaser.GameObjects.Rectangle[] = [];
 
   private bossRect!: Phaser.GameObjects.Rectangle;
   private bossFacingPip!: Phaser.GameObjects.Rectangle;
@@ -120,9 +138,12 @@ export class CombatScene extends Phaser.Scene {
 
   create(): void {
     this.attemptId = crypto.randomUUID();
-    this.sim = createPlayerState(this.scale.width * PLAYER_START_X_RATIO);
+    // TODO(#12): load the player's persisted build; hardcoded sandbox build
+    // until the fight:start bridge event carries the real one.
+    const build: PlayerBuild = { vitality: 10, dexterity: 10, intelligence: 10 };
+    this.sim = createPlayerState(this.scale.width * PLAYER_START_X_RATIO, build);
     this.ctx = {
-      build: { vitality: 10, dexterity: 10, intelligence: 10 },
+      build,
       minX: ARENA_MARGIN,
       maxX: this.scale.width - ARENA_MARGIN,
     };
@@ -157,7 +178,7 @@ export class CombatScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
     this.hintText = this.add
-      .text(0, 0, 'A/D move · Space dodge · J light · K heavy · Shift block', {
+      .text(0, 0, 'A/D move · Space dodge · J light · K heavy · L cast · Shift block', {
         fontFamily: 'monospace',
         fontSize: '13px',
         color: '#6b6b6b',
@@ -172,12 +193,14 @@ export class CombatScene extends Phaser.Scene {
       .setStrokeStyle(2, 0x2a1018);
     this.bossFacingPip = this.add.rectangle(0, 0, 8, 8, 0x141210);
 
-    // Player HUD — top-left.
+    // Player HUD — top-left. HP (red), stamina (green), FP (blue).
     this.add.rectangle(20, 70, HUD_BAR_WIDTH, 12, 0x2a2a2a).setOrigin(0, 0.5);
     this.hpBar = this.add.rectangle(20, 70, HUD_BAR_WIDTH, 12, 0x8a3a3a).setOrigin(0, 0.5);
-    this.add.rectangle(20, 88, HUD_BAR_WIDTH, 8, 0x2a2a2a).setOrigin(0, 0.5);
-    this.staminaBar = this.add.rectangle(20, 88, HUD_BAR_WIDTH, 8, 0x3a8a5a).setOrigin(0, 0.5);
-    this.statusText = this.add.text(20, 100, '', {
+    this.add.rectangle(20, 86, HUD_BAR_WIDTH, 8, 0x2a2a2a).setOrigin(0, 0.5);
+    this.staminaBar = this.add.rectangle(20, 86, HUD_BAR_WIDTH, 8, 0x3a8a5a).setOrigin(0, 0.5);
+    this.add.rectangle(20, 98, HUD_BAR_WIDTH, 6, 0x2a2a2a).setOrigin(0, 0.5);
+    this.fpBar = this.add.rectangle(20, 98, HUD_BAR_WIDTH, 6, 0x4a6bd0).setOrigin(0, 0.5);
+    this.statusText = this.add.text(20, 108, '', {
       fontFamily: 'monospace',
       fontSize: '12px',
       color: '#8a8a8a',
@@ -195,7 +218,7 @@ export class CombatScene extends Phaser.Scene {
       .text(0, 100, '', { fontFamily: 'monospace', fontSize: '12px', color: '#8a8a8a' })
       .setOrigin(1, 0);
 
-    this.keys = this.input.keyboard!.addKeys('A,D,LEFT,RIGHT,SPACE,J,K,SHIFT') as Record<
+    this.keys = this.input.keyboard!.addKeys('A,D,LEFT,RIGHT,SPACE,J,K,L,SHIFT') as Record<
       string,
       Phaser.Input.Keyboard.Key
     >;
@@ -269,6 +292,7 @@ export class CombatScene extends Phaser.Scene {
       light: edge && Phaser.Input.Keyboard.JustDown(k.J),
       heavy: edge && Phaser.Input.Keyboard.JustDown(k.K),
       dodge: edge && Phaser.Input.Keyboard.JustDown(k.SPACE),
+      cast: edge && Phaser.Input.Keyboard.JustDown(k.L),
       block: k.SHIFT.isDown,
     };
   }
@@ -324,6 +348,11 @@ export class CombatScene extends Phaser.Scene {
         if (e.type === 'move:start') this.fightStarted = true;
       }
 
+      // Sorcery projectiles hit the boss the same way melee does — the scene
+      // owns cross-entity resolution; the projectile geometry is the pure
+      // predicate. A connecting bolt is consumed so it can't multi-hit.
+      this.resolveProjectilesOnBoss();
+
       // Terminal check last, after both entities have acted this tick.
       const outcome = determineFightOutcome(this.boss.hp, this.sim.hp);
       if (outcome) this.reportOutcome(outcome);
@@ -375,6 +404,25 @@ export class CombatScene extends Phaser.Scene {
       onBossRecovery: punishBonus > 0,
     });
     this.bossHitFlash = result.wasCritical ? 16 : 8;
+  }
+
+  private resolveProjectilesOnBoss(): void {
+    if (this.sim.projectiles.length === 0) return;
+    const bossHalfWidth = BOSS_W / 2;
+    const hitIds = new Set<number>();
+    for (const p of this.sim.projectiles) {
+      if (!projectileHits(p, this.boss.x, bossHalfWidth)) continue;
+      const result = resolveBossHit(this.boss, {
+        hp: p.damage,
+        poise: SORCERY_HIT_POISE,
+        postureDamage: SORCERY_HIT_POISE,
+      });
+      this.boss = result.state;
+      this.bossHitFlash = result.wasCritical ? 16 : 8;
+      hitIds.add(p.id);
+    }
+    // Consume connecting bolts so a single cast can't multi-hit across ticks.
+    if (hitIds.size > 0) this.sim = consumeProjectiles(this.sim, hitIds);
   }
 
   private resolveBossAttackOnPlayer(move: MoveDef): void {
@@ -429,6 +477,8 @@ export class CombatScene extends Phaser.Scene {
       if (a.id === 'dodge')
         color = isInvulnerable(s) ? PLAYER_COLORS.iframe : PLAYER_COLORS.recovery;
       else if (isBlocking(s)) color = PLAYER_COLORS.block;
+      else if (a.id === 'cast')
+        color = a.phase === 'recovery' ? PLAYER_COLORS.recovery : PLAYER_COLORS.cast;
       else if (a.phase === 'startup') color = PLAYER_COLORS.startup;
       else if (a.phase === 'active') color = PLAYER_COLORS.attack;
       else color = PLAYER_COLORS.recovery;
@@ -444,15 +494,36 @@ export class CombatScene extends Phaser.Scene {
 
     this.hpBar.width = HUD_BAR_WIDTH * (s.hp / BASE_MAX_HP);
     this.staminaBar.width = HUD_BAR_WIDTH * (s.stamina / BASE_MAX_STAMINA);
+    this.fpBar.width = HUD_BAR_WIDTH * (s.fp / maxFp(this.ctx.build.intelligence));
     const mode = isStaggered(s)
       ? `STAGGERED (${s.staggerTicks})`
       : a
         ? `${a.id}/${a.phase}`
         : 'idle';
-    const status = `you — ${mode}   hp:${s.hp.toFixed(0)}   stam:${s.stamina.toFixed(0)}   poise dmg:${s.poiseDamage.toFixed(0)}`;
+    const status = `you — ${mode}   hp:${s.hp.toFixed(0)}   stam:${s.stamina.toFixed(0)}   fp:${s.fp.toFixed(0)}`;
     if (status !== this.lastStatus) {
       this.statusText.setText(status);
       this.lastStatus = status;
+    }
+
+    this.renderProjectiles();
+  }
+
+  /** Sync the projectile sprite pool to the live projectiles: reuse/grow the
+   * pool, position each to its projectile, hide the rest. */
+  private renderProjectiles(): void {
+    const projectiles = this.sim.projectiles;
+    for (let i = 0; i < projectiles.length; i++) {
+      let sprite = this.projectileSprites[i];
+      if (!sprite) {
+        sprite = this.add.rectangle(0, 0, PROJECTILE_W, PROJECTILE_H, PROJECTILE_COLOR);
+        this.projectileSprites[i] = sprite;
+      }
+      sprite.setPosition(projectiles[i].x, this.groundY - PLAYER_H / 2);
+      sprite.setVisible(true);
+    }
+    for (let i = projectiles.length; i < this.projectileSprites.length; i++) {
+      this.projectileSprites[i].setVisible(false);
     }
   }
 

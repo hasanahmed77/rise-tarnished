@@ -110,7 +110,22 @@ to playtest until the spell exists.
   and note; out of scope to *fix* this sprint.
 
 ## Daily check-ins
-_(pending)_
+- **07-22:** #40 built — the sorcery mechanic that makes int a real archetype.
+  Added the shared §6 scaling module (`scaling.ts`: `softcap`/`scaledDamage`,
+  pure + unit-tested — the foundation #12 reuses), an FP resource (max scales
+  with int, regen mirrors stamina), and a committed `cast` action that emits a
+  deterministic projectile in the pure sim (travel/lifetime in `step`,
+  cross-entity hit resolution in the scene via a pure `projectileHits`
+  predicate, matching how melee already works). The fairness property suite
+  passes unchanged — confirming the projectile additions kept the sim
+  deterministic. Wired into CombatScene: L to cast, an FP bar, projectile
+  rendering, cast color. Verified in-browser against real Postgres: FP scaled
+  correctly (70 at int 10), a cast committed the player and spent exactly 35
+  FP, and the bolt spawned/travelled/hit Margit for ~19 int-scaled damage +12
+  posture (boss HP 400→381) — the full loop, confirmed by the live numbers
+  (the automation pane throttles the game loop, so ticks were pumped manually
+  via a temporary hook, since reverted). 140 unit tests (up from 120), full
+  gate green.
 
 ## Review (end of sprint)
 _(pending)_

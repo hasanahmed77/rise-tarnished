@@ -101,8 +101,24 @@ damage = weapon_base × (1 + scaling_coeff × softcap(stat)) × type_modifier
 softcap(s) = s ≤ cap ? s/cap : 1 + 0.3 × (s - cap)/cap   (normalized)
 ```
 
-Pure function, unit-tested, lives in the logic layer. Exact curves are tuning
-targets, not architecture.
+Shipped as pure, unit-tested functions in the logic layer
+(`src/game/combat/scaling.ts`: `softcap`, `scaledDamage`). Exact curves are
+tuning targets, not architecture.
+
+**Sorcery & FP (#40, the int mechanic).** Intelligence is a real archetype,
+not just a stat: a caster spends **Focus Points** on a committed ranged
+sorcery. Shipped v1 values (`frameData.ts`, all tuning targets):
+
+- **FP pool** = `40 + 3 × int` (§6 secondary), regenerating out of combat
+  commitment like stamina (a slower trickle — a caster shouldn't spam).
+- **Cast** is a slow, hard-committed action (18-tick startup / 20-tick
+  recovery, no stamina cost) gated on **35 FP**. On its active frame it emits
+  one projectile travelling at 6 u/tick, lifetime 90 ticks (~9 world-units ×
+  90), carrying HP damage `scaledDamage(14, 1.5, int, cap 45)` (≈19 at int 10,
+  35 at the cap) plus flat poise/posture damage.
+- The projectile lives in the pure sim (deterministic travel + lifetime,
+  fairness suite unaffected); cross-entity hit resolution stays the scene's
+  job, same as melee, via the pure `projectileHits` predicate.
 
 ### Build archetypes we commit to supporting
 1. **Dex duelist** — fast light chains, extended i-frames, low HP margin.
