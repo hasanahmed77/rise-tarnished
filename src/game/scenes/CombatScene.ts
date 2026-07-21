@@ -25,7 +25,9 @@ import {
 } from '../boss/bossCombat';
 import { margitWeightRules } from '../boss/weighting';
 import { margitMoves, margitTopLevelMoveIds } from '../boss/margitMoves';
-import { BOSS_BASE_MAX_HP } from '../boss/bossTuning';
+import { BOSS_BASE_MAX_HP, MARGIT_BOSS_ID, MARGIT_RUNE_REWARD } from '../boss/bossTuning';
+import { computeRuneReward, type FightResult } from '../attempt/reward';
+import { determineFightOutcome } from '../attempt/outcome';
 import type { MoveDef } from '../boss/types';
 
 // Renders and drives the fight (issues #6/#7/#8). All rules live in the
@@ -79,6 +81,13 @@ export class CombatScene extends Phaser.Scene {
   private bossHitFlash = 0;
   private playerHitFlash = 0;
 
+  private bridge?: GameBridge;
+  private attemptId!: string;
+  private tickCount = 0;
+  /** True once a terminal HP state has been detected and reported — freezes
+   * the sim loop so nothing acts (or reports a second outcome) after death. */
+  private finished = false;
+
   private keys!: Record<string, Phaser.Input.Keyboard.Key>;
 
   private player!: Phaser.GameObjects.Rectangle;
@@ -110,6 +119,7 @@ export class CombatScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.attemptId = crypto.randomUUID();
     this.sim = createPlayerState(this.scale.width * PLAYER_START_X_RATIO);
     this.ctx = {
       build: { vitality: 10, dexterity: 10, intelligence: 10 },
@@ -196,8 +206,8 @@ export class CombatScene extends Phaser.Scene {
       this.scale.off(Phaser.Scale.Events.RESIZE, this.onResize, this);
     });
 
-    const bridge = this.registry.get('bridge') as GameBridge | undefined;
-    bridge?.toShell.emit('game:ready', undefined);
+    this.bridge = this.registry.get('bridge') as GameBridge | undefined;
+    this.bridge?.toShell.emit('game:ready', undefined);
   }
 
   private onResize(gameSize: Phaser.Structs.Size): void {
@@ -270,8 +280,11 @@ export class CombatScene extends Phaser.Scene {
     let firstTick = true;
     // Fixed-timestep: consume the accumulator in whole 60Hz ticks. Edge-
     // triggered intents fire only on the first sim tick of this frame so one
-    // keypress can't launch several actions.
-    while (this.accumulator >= TICK_MS) {
+    // keypress can't launch several actions. Stops the instant the fight
+    // ends (`finished`) — nothing acts, and no second outcome can fire, once
+    // a terminal HP state has been reported.
+    while (this.accumulator >= TICK_MS && !this.finished) {
+      this.tickCount += 1;
       const input = this.sampleInput(firstTick);
       if (
         !this.fightStarted &&
@@ -311,11 +324,26 @@ export class CombatScene extends Phaser.Scene {
         if (e.type === 'move:start') this.fightStarted = true;
       }
 
+      // Terminal check last, after both entities have acted this tick.
+      const outcome = determineFightOutcome(this.boss.hp, this.sim.hp);
+      if (outcome) this.reportOutcome(outcome);
+
       this.accumulator -= TICK_MS;
       firstTick = false;
     }
 
     this.render();
+  }
+
+  private reportOutcome(result: FightResult): void {
+    this.finished = true;
+    this.bridge?.toShell.emit('fight:outcome', {
+      attemptId: this.attemptId,
+      bossId: MARGIT_BOSS_ID,
+      result,
+      durationTicks: this.tickCount,
+      estimatedRuneDelta: computeRuneReward(result, MARGIT_RUNE_REWARD),
+    });
   }
 
   private facingEachOther(): { playerFaces: boolean; distance: number } {

@@ -7,7 +7,13 @@ describe('GameBridge', () => {
     const handler = vi.fn();
     bridge.toShell.on('fight:outcome', handler);
 
-    const outcome = { result: 'death' as const, durationTicks: 3600, runeDelta: 0 };
+    const outcome = {
+      attemptId: 'test-attempt-id',
+      bossId: 'margit',
+      result: 'death' as const,
+      durationTicks: 3600,
+      estimatedRuneDelta: 0,
+    };
     bridge.toShell.emit('fight:outcome', outcome);
 
     expect(handler).toHaveBeenCalledExactlyOnceWith(outcome);

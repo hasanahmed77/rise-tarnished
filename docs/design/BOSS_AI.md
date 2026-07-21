@@ -242,6 +242,12 @@ authoring target and the template that proves the schema.
 
 ## 8. Observability & the post-death recap
 
+**Status (`#11`):** the attempt row itself (boss id, result, duration, rune
+reward) is real — persisted via `resolve_attempt`, one row per fight. The
+per-decision event log described below (`attempt_logs.log jsonb`) is still
+the spec, not yet collected; it stays `{}` until the L2/L3 decision points
+actually emit into it. That's `#13`'s prerequisite, not `#11`'s.
+
 Every L2/L3 decision emits a structured event to the attempt log:
 
 ```ts

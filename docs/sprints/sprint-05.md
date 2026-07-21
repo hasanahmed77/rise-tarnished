@@ -91,12 +91,48 @@ new schema/security surface, not just game logic — sized accordingly.
   twice (double rune payout). The RPC needs an idempotency guard (e.g. an
   attempt identifier that can only be resolved once) — name this explicitly
   in the RPC's own design, don't discover it in review.
-- **Local Docker is still broken** on this machine — deferred by mutual
-  agreement in Sprint 4 — so, as before, RPC/RLS proof runs in CI's clean
-  Docker environment, not locally.
+- ~~Local Docker is still broken~~ **Resolved 07-21**, before this sprint's
+  build work started — Docker Desktop's earlier corruption cleared on its own
+  after a restart. Local Supabase now works for real iteration, not just CI.
 
 ## Daily check-ins
-_(pending)_
+- **07-21:** #11 built — CombatScene detects boss/player HP hitting 0,
+  freezes the sim, and emits the (already-defined but previously never fired)
+  `fight:outcome` bridge event. A resolution overlay in `GameCanvas` calls the
+  new `resolve_attempt` RPC (`supabase/migrations`) and shows the real
+  persisted reward once it responds. Reward computation itself is a pure
+  `computeRuneReward()` (engine-agnostic, unit-tested) used only for the
+  optimistic client-side estimate — the RPC is the authoritative source,
+  computed from a new data-driven `bosses` table (id → region → reward), so
+  bosses #2-4 only ever need an INSERT there, never an RPC change.
+  Idempotent via the client-generated attempt id as the dedupe key. Writing
+  the RPC's own integration test caught a real cross-user data-leak bug
+  before merge — reusing another user's attempt id would have returned
+  *their* rune total through the RPC's return value, since SECURITY DEFINER
+  bypasses RLS and the replay-lookup branch wasn't scoped to the caller;
+  fixed by scoping that lookup to `auth.uid()` and rejecting the reuse
+  outright. Verified end-to-end in a real browser against a real local
+  Postgres — both win and lose paths, correct reward/region-unlock, confirmed
+  against the database directly, not just the UI. Local Docker being fixed
+  today made this whole loop fast — no CI round-trips needed to iterate.
+- **07-21 (#11 review):** `/code-review`'s 8-angle pass (self-run manually —
+  the skill tool declined to delegate this time) found 3 more real SQL bugs
+  beyond what local dev caught: `current_region` could regress or skip ahead
+  since nothing checked a boss's region against the player's actual frontier
+  (unreachable with one boss, but structurally live the moment boss #2's row
+  is added — fixed with a reachability guard); `region_unlocked` wasn't
+  recomputed on an idempotent replay, always reporting `false` even when the
+  original call did unlock a region (fixed by persisting it as a real column
+  instead of re-deriving it); and `attempt_logs` still allowed direct client
+  INSERT from Sprint 4 (before this RPC existed to own it), letting a client
+  pre-seed a row the replay branch would trust and echo back (self-targeting
+  only, no real currency impact — fixed by revoking that grant, since
+  resolve_attempt is now the only legitimate writer). Also fixed a genuine
+  CLAUDE.md violation the conventions angle caught: win/lose determination
+  lived only inside the Phaser scene class with zero test coverage of the
+  double-KO tie-break rule — extracted to `determineFightOutcome()`
+  (`game/attempt/outcome.ts`), now unit-tested. Re-verified full local gate
+  + 19/19 RLS/RPC tests after all fixes.
 
 ## Review (end of sprint)
 _(pending)_

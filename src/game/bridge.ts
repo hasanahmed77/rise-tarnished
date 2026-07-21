@@ -12,9 +12,16 @@ export interface PlayerBuild {
 }
 
 export interface FightOutcome {
+  /** Client-generated once when the fight ends; the id resolve_attempt (#11)
+   * uses to dedupe retries — never regenerated for the same fight. */
+  attemptId: string;
+  bossId: string;
   result: 'victory' | 'death';
   durationTicks: number;
-  runeDelta: number;
+  /** Optimistic client-side estimate only (see game/attempt/reward.ts) — not
+   * the persisted amount. The shell must call the resolve_attempt RPC for
+   * the authoritative reward; this is never sent to that RPC as an amount. */
+  estimatedRuneDelta: number;
 }
 
 /** React → Phaser */

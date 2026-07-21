@@ -4,6 +4,19 @@
 
 export const BOSS_BASE_MAX_HP = 400;
 
+/** Canonical boss identity string, sent to the shell/bridge and to the
+ * resolve_attempt RPC (#11). Must match the `bosses.id` row in
+ * supabase/migrations — the RPC looks up the real reward/region from that
+ * row, this constant only labels which one to ask for. */
+export const MARGIT_BOSS_ID = 'margit';
+
+/** Client-side mirror of `bosses.rune_reward` (that migration's row is the
+ * only value the resolve_attempt RPC actually trusts). Used only for the
+ * optimistic UI estimate shown before the RPC responds — never persisted
+ * from here, never sent as a trusted amount. Keep in sync by hand; drifting
+ * is a cosmetic display flash, not a security issue. */
+export const MARGIT_RUNE_REWARD = 500;
+
 /** Flat poise threshold for phase 1 (no vitality-style scaling — bosses don't
  * spend runes). Tune per boss/phase later; one number is enough to prove the
  * pipeline this sprint. */
