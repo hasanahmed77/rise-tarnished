@@ -51,7 +51,7 @@ export function GameCanvas() {
           setResolution({
             status: 'error',
             outcome,
-            message: err instanceof Error ? err.message : 'Failed to save this attempt.',
+            message: extractErrorMessage(err),
           });
         },
       );
@@ -85,6 +85,21 @@ export function GameCanvas() {
   );
 }
 
+/** Supabase's PostgrestError (thrown on `.rpc()` failure) is a plain object
+ * with a `message` field, not an `Error` instance — `err instanceof Error`
+ * misses it and falls back to a useless generic string. Handle both shapes. */
+function extractErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (
+    typeof err === 'object' &&
+    err !== null &&
+    typeof (err as { message?: unknown }).message === 'string'
+  ) {
+    return (err as { message: string }).message;
+  }
+  return 'Failed to save this attempt.';
+}
+
 /** Calls the resolve_attempt RPC (#11) — the only path from a finished fight
  * to persisted runes/progress (ADR-0003: authoritative state is
  * client-read-only). The RPC computes the reward itself from server-side
@@ -105,24 +120,31 @@ async function resolveAttempt(outcome: FightOutcome): Promise<ResolvedAttempt> {
   // is `unknown` here — narrow it explicitly (a runtime check on real network
   // data is warranted regardless) rather than casting blindly.
   if (!isResolveAttemptRow(data)) {
+    console.error('resolve_attempt returned an unexpected shape:', data);
     throw new Error('resolve_attempt returned an unexpected shape');
   }
   return {
     runeDelta: data.rune_delta,
-    totalRunes: data.total_runes,
+    totalRunes: Number(data.total_runes),
     regionUnlocked: data.region_unlocked,
   };
 }
 
+// total_runes is a Postgres bigint (player_stats.runes) — PostgREST/pgbouncer
+// configuration determines whether it's serialized as a JSON number or a
+// string (the safer convention, to avoid JS Number precision loss above
+// 2^53), and that can differ between the local CLI stack and a live hosted
+// project. Accept either; resolveAttempt() coerces it to a number for display.
 function isResolveAttemptRow(
   value: unknown,
-): value is { rune_delta: number; total_runes: number; region_unlocked: boolean } {
+): value is { rune_delta: number; total_runes: number | string; region_unlocked: boolean } {
+  const v = value as Record<string, unknown> | null;
   return (
-    typeof value === 'object' &&
-    value !== null &&
-    typeof (value as Record<string, unknown>).rune_delta === 'number' &&
-    typeof (value as Record<string, unknown>).total_runes === 'number' &&
-    typeof (value as Record<string, unknown>).region_unlocked === 'boolean'
+    typeof v === 'object' &&
+    v !== null &&
+    typeof v.rune_delta === 'number' &&
+    (typeof v.total_runes === 'number' || typeof v.total_runes === 'string') &&
+    typeof v.region_unlocked === 'boolean'
   );
 }
 
