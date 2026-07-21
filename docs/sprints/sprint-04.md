@@ -121,7 +121,89 @@ auth setup comes first).
   exclusion. Conventions recorded in ADR-0003.
 
 ## Review (end of sprint)
-_(pending)_
+
+**Goal met: yes.** A player signs in with Google and gets a real, RLS-isolated
+save spine in Postgres — stats, progress, builds, and attempt logs, each
+user-scoped and *proven* isolated against a real database, not assumed. The
+account/persistence layer every later feature (#11 rune rewards, #12 stat
+spend, #13 LLM recap) needs now exists to build on.
+
+Delivered:
+- **#4** — Supabase Google OAuth as sole sign-in: SSR client/server clients, a
+  session-refresh proxy (Next.js 16's renamed `middleware`→`proxy` convention),
+  the OAuth callback route, `/` (public) and `/play` (server-side protected).
+  Full round trip manually verified in a real browser.
+- **#5** — the schema + migrations (stats, progress, builds, attempt logs),
+  RLS on every table with a SECURITY DEFINER signup trigger provisioning the
+  per-user singleton rows, and a real cross-user isolation suite (10 cases) run
+  against a live local Postgres in a dedicated CI job — never the hosted
+  project (SDLC §8).
+- **Security + schema hardening** (from `/code-review`): closed a real
+  RLS-gates-rows-not-values hole (authoritative state is now client-read-only,
+  mutations reserved for the server-validated write path), moved grants to
+  `ALTER DEFAULT PRIVILEGES` (fail-closed baseline, no per-table GRANT to
+  forget), one-active-build constraint, default-build provisioning,
+  attempt_logs sanity bounds, `updated_at` triggers, documented realtime
+  exclusion. Conventions recorded in ADR-0003.
+- **Dropped the redundant `health` stat** — vitality is the sole survivability
+  stat, HP derives from it; cleaned from schema, the `PlayerBuild` type, seeds,
+  and COMBAT_SYSTEM.md.
+
+Not in scope / deferred: the write paths that *populate* this spine (#11
+win/lose rune rewards, #12 stat spend), the LLM recap that reads attempt logs
+(#13), and applying the migration to the live hosted project (needs the user's
+own `supabase login` — a personal auth step, never scripted).
 
 ## Retro (end of sprint)
-_(pending)_
+
+**What worked**
+- **CI as verification ground truth when the local environment failed.** Local
+  Docker Desktop was corrupted (image-cache I/O errors) and couldn't be
+  repaired from the terminal, so the RLS proof couldn't run locally at all.
+  Rather than block on an environment repair outside the project, the `rls` job
+  ran the exact suite against CI's own clean Docker — and it earned its keep
+  immediately, catching three migration bugs the local gates (typecheck, lint,
+  unit, build) structurally *cannot* see: a `GITHUB_ENV` quoting bug, and two
+  missing table GRANTs (`authenticated`, then `service_role`). A migration that
+  "parses fine" is not a migration that "works" — only a real Postgres proves
+  the second.
+- **The review earned its cost decisively again.** The 8-angle pass found a
+  genuine security hole — RLS policies gate *which row* you touch, not *what
+  value* you write, so a signed-in player could `PATCH` their own runes to a
+  billion via the raw REST API. Every test was green and the app "worked"; this
+  is invisible to unit tests and to a playtester, and visible only to a
+  reviewer reading the policy semantics.
+- **The sprint's own risk list predicted the real friction.** Both named risks
+  fired exactly as written: the OAuth provider config gaps (each surfaced as a
+  distinct, correctly-worded Supabase error, proving the client code was right
+  throughout) and the external-tooling dependency (Docker). Naming them up
+  front turned them into expected checkpoints, not surprises.
+- **A domain question sharpened the model mid-flight.** Pausing on "is this
+  schema normalized?" surfaced the `health`/`vitality` redundancy — a stored
+  derived value — and cutting it left a cleaner 3-stat model than we started
+  with.
+
+**What didn't**
+- **Grants got fixed reactively, twice, before the durable fix landed.** The
+  first two CI failures were both "forgot the GRANT," patched per-table. Only
+  after the review's altitude angle did the real fix land (`ALTER DEFAULT
+  PRIVILEGES` + a written ADR convention) so the *next* migration can't
+  reproduce the same class of bug. The lesson: when the same failure recurs,
+  stop patching instances and fix the mechanism.
+- **Local Docker is still broken** — deferred by mutual agreement (it's the
+  user's own machine, repairable via Docker Desktop → Troubleshoot → purge).
+  Fine for now since CI is the source of truth, but local Supabase iteration is
+  unavailable until it's fixed.
+- **The session-limit interruption hit the review a third sprint running** —
+  several finder/verify agents died mid-run and were relaunched after the reset.
+  Nothing was lost, but it's now a reliable tax on multi-agent reviews worth
+  planning around.
+
+**One change for next sprint**
+- For schema/migration work, wire the real-database proof into CI from the
+  *first* push and treat it as the gate — don't try to verify migrations
+  locally first. Local Docker proved unreliable, and CI's clean environment
+  caught bugs the local gates never could. "It parses" and "it runs on real
+  Postgres" are different claims; only CI cheaply proves the second.
+
+**Sprint status: CLOSED.**
