@@ -543,14 +543,16 @@ describe('spend_stat_point RPC (#12 DoD)', () => {
     expect(Number(stats?.runes)).toBe(500); // unchanged — the bad call never wrote
   });
 
-  it('spends exactly one point of the named stat and exactly the flat cost in runes', async () => {
-    // userA has 500 runes from the previous test's admin grant.
+  it('spends exactly one point of the named stat, at the base cost for its first point', async () => {
+    // userA has 500 runes from the previous test's admin grant, dexterity at
+    // its starting value (10) — the base cost (100) applies at the stat's
+    // starting value; the next test proves it rises from there.
     const { data, error } = await callSpendStatPoint(userA.client, 'dexterity');
     expect(error).toBeNull();
     expect(data?.dexterity).toBe(11); // 10 (starting) + 1
     expect(data?.vitality).toBe(10); // untouched
     expect(data?.intelligence).toBe(10); // untouched
-    expect(Number(data?.runes)).toBe(400); // 500 - 100 flat cost
+    expect(Number(data?.runes)).toBe(400); // 500 - 100 base cost
 
     const { data: stats } = await admin
       .from('player_stats')
@@ -559,6 +561,34 @@ describe('spend_stat_point RPC (#12 DoD)', () => {
       .single();
     expect(stats?.dexterity).toBe(11);
     expect(Number(stats?.runes)).toBe(400);
+  });
+
+  it('the next point in the same stat costs more (100 base + 25/pt already bought)', async () => {
+    // userA is now at dexterity 11, runes 400 (from the previous test).
+    const { data, error } = await callSpendStatPoint(userA.client, 'dexterity');
+    expect(error).toBeNull();
+    expect(data?.dexterity).toBe(12); // 11 + 1
+    expect(Number(data?.runes)).toBe(275); // 400 - (100 + 25*(11-10)) = 400 - 125
+  });
+
+  it("a stat at its hard cap can't be raised further, even with runes to spare", async () => {
+    await admin
+      .from('player_stats')
+      .update({ intelligence: 60, runes: 999999 })
+      .eq('user_id', userA.id);
+
+    const { data, error } = await callSpendStatPoint(userA.client, 'intelligence');
+    expect(data).toBeNull();
+    expect(error).not.toBeNull();
+    expect(error?.message).toMatch(/maximum/);
+
+    const { data: stats } = await admin
+      .from('player_stats')
+      .select('intelligence, runes')
+      .eq('user_id', userA.id)
+      .single();
+    expect(stats?.intelligence).toBe(60); // unchanged — capped, not spent
+    expect(Number(stats?.runes)).toBe(999999); // unchanged — nothing charged for a rejected spend
   });
 
   it('atomic deduct-and-increment: spending exactly the last affordable point succeeds, the next fails', async () => {
@@ -586,13 +616,13 @@ describe('spend_stat_point RPC (#12 DoD)', () => {
   });
 
   it("spending on one user never touches another user's stats", async () => {
-    // userA is at dexterity 11 (from the earlier test); userB's spends above
+    // userA is at dexterity 12 (from the earlier tests); userB's spends above
     // must not have moved it.
     const { data: stats } = await admin
       .from('player_stats')
       .select('dexterity')
       .eq('user_id', userA.id)
       .single();
-    expect(stats?.dexterity).toBe(11);
+    expect(stats?.dexterity).toBe(12);
   });
 });

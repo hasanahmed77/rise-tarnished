@@ -134,13 +134,21 @@ are real. Shipped v1 values (`frameData.ts`, all tuning targets):
 - **Max stamina** = `100 + 2 × 40 × softcap(vitality, 40)` — same curve, +2/pt
   below the cap.
 - **Stat spend**: `spend_stat_point` (SECURITY DEFINER RPC,
-  `supabase/migrations/…_spend_stat_point.sql`) atomically deducts a flat
-  **100 runes** and increments one of vitality/dexterity/intelligence by 1.
-  No hard ceiling on a stat — only the soft cap's diminishing-returns curve
-  above (§6's table lists soft caps, not hard maximums). Idempotency isn't
-  needed the way `resolve_attempt` needs it (#11): each call spends exactly
-  one point via a single conditional `UPDATE … WHERE runes >= cost`, so a
-  retried call either succeeds once or fails cleanly, never double-spends.
+  `supabase/migrations/…_spend_stat_point.sql`) atomically increments one of
+  vitality/dexterity/intelligence by 1, deducting `100 + 25 × (current − 10)`
+  runes — the cost rises with each point already bought in that stat, so
+  dumping every rune into one stat gets progressively pricier relative to
+  spreading them across all three. A **hard cap of 60** on every stat (above
+  all three §6 soft caps) backstops the soft cap's diminishing-returns curve
+  with a real ceiling — no stat grows without bound no matter how many runes
+  are farmed. Idempotency isn't needed the way `resolve_attempt` needs it
+  (#11): each call spends exactly one point, and because the cost now
+  depends on the stat's current value, the row is locked (`SELECT … FOR
+  UPDATE`) before that value is read — without the lock, two concurrent
+  calls could both read the same pre-spend value, both compute the same
+  cost, and both pass the balance check against a balance neither has
+  actually paid yet. A retried call either succeeds once or fails cleanly
+  (insufficient runes, or the stat is capped), never double-spends.
 - The player's real persisted build now drives every fight: the character
   sheet screen (`CharacterSheet.tsx`) reads `player_stats`, and `PlayShell`
   hands the resulting build to `GameCanvas`, which emits it via the

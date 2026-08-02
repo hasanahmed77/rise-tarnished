@@ -156,6 +156,23 @@ to playtest until the spell exists.
   vit/int) can clear Margit — the DoD's `docs/playtests/` note. Blocked on
   a real Google sign-in to drive the authenticated `/play` flow, which
   automation can't complete; this is the sprint's one remaining open item.
+- **08-03:** #12 follow-up, before merge — a design pass on PR #45 surfaced
+  five things worth fixing pre-merge rather than tuning later: the flat
+  100-rune cost never rose no matter how deep a player went into one stat
+  (fixed: cost now rises `+25` per point already bought, `SELECT … FOR
+  UPDATE` locks the row so the now-state-dependent cost stays race-safe —
+  new ADR-0003 bullet on locking when cost depends on the row being
+  written); no stat had a real ceiling (fixed: hard cap of 60, above all
+  three §6 soft caps); the character sheet showed on every single retry
+  even with nothing affordable (fixed: `CharacterSheet` now checks
+  affordability on load and calls straight through to `onBegin` when
+  there's nothing to buy); a single click spent runes with no confirmation
+  or undo (fixed: click-to-arm, click-again-to-confirm, with a 4s
+  auto-disarm and a live preview of the resulting stat value); and melee's
+  dex-scaling coefficients (0.8 light / 1.0 heavy) are still an unverified
+  guess — noted, not fixed, since only a real playtest can tell if they're
+  right. 27 RLS/RPC tests (up from 25, two new: cost escalation across
+  repeated purchases, hard-cap rejection). Full gate green.
 
 ## Review (end of sprint)
 _(pending)_
