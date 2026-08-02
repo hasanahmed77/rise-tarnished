@@ -12,7 +12,10 @@
  * swung sword and Margit's horns need room outside the hitbox. */
 export const PLAYER_SPRITE_W = 66;
 export const PLAYER_SPRITE_H = 96;
-export const BOSS_SPRITE_W = 108;
+// Margit's frame is much wider than her body: her cane has to reach the
+// player at the 80–140px ranges her moves actually hit from, so the strike
+// animates well outside her silhouette. See the note in generate-sprites.mjs.
+export const BOSS_SPRITE_W = 204;
 export const BOSS_SPRITE_H = 144;
 export const SLASH_SPRITE = 72;
 export const SLASH_FRAME_COUNT = 4;

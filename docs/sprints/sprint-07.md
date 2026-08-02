@@ -105,6 +105,25 @@ open art question is updated to record this.
   budgeted screenshake weighted by hit severity. 153 unit tests (up from
   147). Full gate green.
 
+- **08-03 (later):** First real playtest feedback on the art, and it caught
+  something the static previews couldn't: *"Margit's strikes feel bad — he's
+  striking the ground, it should strike me."* Correct, and the root cause was
+  a sizing mistake, not a pose one. Her sprite was 108px wide while her melee
+  moves hit from **80–140px** (`margitMoves.ts` rangeBand) — the canvas
+  physically could not contain a strike that reached the player, so the only
+  direction the cane had left to travel was down, which reads as slamming the
+  floor beside her. Widened her frame to 204px (her body is unchanged; the
+  extra is reach), and reworked the three attack poses so the cane pulls back
+  over the shoulder on the tell, extends *forward to the player's chest* on
+  the active frame, and follows through low on recovery. Also fixed the cane
+  detaching from her hand in the staggered/collapsed frames — the grip sat
+  where no arm reached. Verified by compositing the strike against a player
+  placed at the move's true 100px hit range, rather than eyeballing the sheet
+  in isolation. **Lesson worth keeping: sprite dimensions are a gameplay
+  decision, not an art one** — an attack animation that can't reach as far as
+  its hitbox is a readability bug (§1), and reviewing frames in isolation
+  hides it completely.
+
 ## Review (end of sprint)
 _(pending)_
 

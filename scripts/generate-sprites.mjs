@@ -57,7 +57,15 @@ const C = {
 const PLAYER_W = 22;
 const PLAYER_H = 32;
 const PLAYER_SCALE = 3;
-const MARGIT_W = 36;
+// Margit's canvas is far wider than her body (~24 base units) because her
+// cane has to *reach the player*. Her melee moves hit from 80–140 world px
+// (margitMoves.ts rangeBand), which at this 3× scale is 27–47 base units
+// from her centre — a canvas sized to her body would clip the strike, and
+// the only place left to animate would be downward, which reads as slamming
+// the ground next to her instead of hitting you. Empty pixels cost almost
+// nothing in a deflated PNG; a strike that doesn't reach costs readability,
+// which COMBAT_SYSTEM.md §1 makes a pillar.
+const MARGIT_W = 68;
 const MARGIT_H = 48;
 const MARGIT_SCALE = 3;
 
@@ -311,7 +319,10 @@ function margitFrame({
   prone = false,
 }) {
   const c = new Canvas(MARGIT_W, MARGIT_H);
-  const cx = 18;
+  // Body sits at the canvas centre so the sprite's 0.5 origin lands on the
+  // sim's boss.x, and so setFlipX mirrors the strike correctly when she
+  // turns to face a player on her other side.
+  const cx = MARGIT_W / 2;
 
   c.ellipse(cx, 45.5, 10, 2, C.shadow);
 
@@ -403,11 +414,13 @@ function margitFrame({
   c.ellipse(cx + 6 + lean, top + 7, 3, 2.5, C.omenSkinDark);
 
   // Arms.
+  // Arms track the cane's grip — a strike with the hand nowhere near the
+  // weapon reads as the cane floating.
   if (pose === 'tell') {
-    c.line(cx + 6 + lean, top + 8, cx + 12, top - 2, C.omenSkin, 2);
+    c.line(cx + 6 + lean, top + 8, cx + 6, top - 4, C.omenSkin, 2);
     c.line(cx - 6 + lean, top + 8, cx - 10, top + 12, C.omenSkin, 2);
   } else if (pose === 'lunge') {
-    c.line(cx + 6 + lean, top + 8, cx + 13, top + 14, C.omenSkin, 2);
+    c.line(cx + 6 + lean, top + 8, cx + 12, top + 11, C.omenSkin, 2);
     c.line(cx - 6 + lean, top + 8, cx - 9, top + 6, C.omenSkin, 2);
   } else if (pose === 'limp') {
     c.line(cx + 6 + lean, top + 8, cx + 9, top + 18, C.omenSkin, 2);
@@ -431,16 +444,28 @@ function margitFrame({
 
   // Staff/cane — 2px so it reads as a held weapon, not a stray line, with a
   // darker spine down one side and a glowing head.
+  //
+  // Poses are (grip → tip). The strike travels *forward*, ending level with
+  // the player's torso: the player is 32 base units tall on this same scale,
+  // so with the ground at y≈45 their body spans roughly y 13–45 and their
+  // chest sits near y 26. A tip that ends much below that is hitting the
+  // floor, not the player — which is exactly what the first pass did.
   const staffPose =
     staff === 'raised'
-      ? [cx + 13, top - 5, cx + 11, top + 15]
+      ? // Windup: hauled up and back over the shoulder, away from the player.
+        [cx + 6, top - 6, cx + 1, top + 14]
       : staff === 'swung'
-        ? [cx + 15, top + 10, cx + 7, top + 27]
+        ? // Active: whipped forward and out, tip at the player's chest.
+          [cx + 12, top + 11, cx + 30, top + 17]
         : staff === 'low'
-          ? [cx + 10, top + 13, cx + 12, top + 31]
-          : staff === 'rest'
-            ? [cx + 10, top + 12, cx + 11, top + 33]
-            : null;
+          ? // Recovery: overextended and dropping — the punish window.
+            [cx + 10, top + 14, cx + 26, top + 27]
+          : staff === 'dropped'
+            ? // Staggered/collapsed: hanging from a limp hand, barely held.
+              [cx + 9, top + 18, cx + 16, top + 30]
+            : staff === 'rest'
+              ? [cx + 10, top + 12, cx + 11, top + 33]
+              : null;
   if (staffPose) {
     const [sx, sy, ex, ey] = staffPose;
     c.line(sx, sy, ex, ey, C.gold, 2);
@@ -458,8 +483,8 @@ const MARGIT_FRAMES = [
   () => margitFrame({ pose: 'tell', bob: -1, lean: -2, staff: 'raised' }), // 2 tell/startup
   () => margitFrame({ pose: 'lunge', bob: 1, lean: 3, staff: 'swung' }), // 3 active
   () => margitFrame({ pose: 'idle', bob: 2, lean: 2, staff: 'low' }), // 4 recovery
-  () => margitFrame({ pose: 'limp', bob: 3, lean: -3, staff: 'low' }), // 5 staggered
-  () => margitFrame({ pose: 'limp', collapsed: true, staff: 'low' }), // 6 collapsed
+  () => margitFrame({ pose: 'limp', bob: 3, lean: -3, staff: 'dropped' }), // 5 staggered
+  () => margitFrame({ pose: 'limp', collapsed: true, staff: 'dropped' }), // 6 collapsed
   () => margitFrame({ prone: true }), // 7 death
 ];
 
