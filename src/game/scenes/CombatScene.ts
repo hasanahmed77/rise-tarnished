@@ -312,7 +312,12 @@ export class CombatScene extends Phaser.Scene {
       const input = this.sampleInput(firstTick);
       if (
         !this.fightStarted &&
-        (input.moveX !== 0 || input.light || input.heavy || input.dodge || input.block)
+        (input.moveX !== 0 ||
+          input.light ||
+          input.heavy ||
+          input.dodge ||
+          input.block ||
+          input.cast)
       ) {
         this.fightStarted = true;
       }
@@ -333,7 +338,8 @@ export class CombatScene extends Phaser.Scene {
           (e) => e.type === 'action:start' && e.id === 'dodge',
         ),
         attackStarted: playerResult.events.some(
-          (e) => e.type === 'action:start' && (e.id === 'light' || e.id === 'heavy'),
+          (e) =>
+            e.type === 'action:start' && (e.id === 'light' || e.id === 'heavy' || e.id === 'cast'),
         ),
         // One shared definition of an opening (engine layer) — the headless
         // bot harness (#14) exercises PUNISH through the same predicate.
@@ -411,7 +417,11 @@ export class CombatScene extends Phaser.Scene {
     const bossHalfWidth = BOSS_W / 2;
     const hitIds = new Set<number>();
     for (const p of this.sim.projectiles) {
-      if (!projectileHits(p, this.boss.x, bossHalfWidth)) continue;
+      // A bolt can only connect travelling toward the boss — without this, a
+      // point-blank cast facing away from the boss still registers a hit,
+      // since projectileHits is a pure x-overlap check with no direction.
+      const travelsTowardBoss = p.facing === (this.boss.x >= p.x ? 1 : -1);
+      if (!travelsTowardBoss || !projectileHits(p, this.boss.x, bossHalfWidth)) continue;
       const result = resolveBossHit(this.boss, {
         hp: p.damage,
         poise: SORCERY_HIT_POISE,

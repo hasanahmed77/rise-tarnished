@@ -113,8 +113,9 @@ sorcery. Shipped v1 values (`frameData.ts`, all tuning targets):
   commitment like stamina (a slower trickle — a caster shouldn't spam).
 - **Cast** is a slow, hard-committed action (18-tick startup / 20-tick
   recovery, no stamina cost) gated on **35 FP**. On its active frame it emits
-  one projectile travelling at 6 u/tick, lifetime 90 ticks (~9 world-units ×
-  90), carrying HP damage `scaledDamage(14, 1.5, int, cap 45)` (≈19 at int 10,
+  one projectile travelling at 6 u/tick, lifetime 90 ticks (max range ~540
+  world-units before it fizzles), carrying HP damage
+  `scaledDamage(14, 1.5, int, cap 45)` (≈19 at int 10,
   35 at the cap) plus flat poise/posture damage.
 - The projectile lives in the pure sim (deterministic travel + lifetime,
   fairness suite unaffected); cross-entity hit resolution stays the scene's
