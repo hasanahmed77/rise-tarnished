@@ -86,6 +86,26 @@ the hard way while building the first one:
      structurally possible, just unreachable until more data existed to
      trigger it. Caught in `#11`'s own review, unreachable with one boss at
      merge time but fixed at the root rather than deferred.
+   - **Not every RPC needs the idempotency-key pattern above.** `#12`'s
+     `spend_stat_point` is repeatable rather than terminal — spending one
+     point is safe to retry on its own. Reach for `resolve_attempt`'s
+     dedupe-key idempotency only for one-shot terminal events where a retry
+     must never re-apply; a repeatable action that's safe to fail-and-retry
+     doesn't need it.
+   - **A cost that depends on current state needs a row lock, not just a
+     conditional WHERE.** `spend_stat_point`'s cost rises with the stat's
+     own current value, so the value has to be read before it can be
+     charged for — and reading it via a plain `SELECT` first reopens exactly
+     the race point 5 above the flat-cost version closed: two concurrent
+     calls could both read the same pre-spend value, both compute the same
+     (too-low) cost, and both pass a balance check against a balance neither
+     has actually paid yet. `SELECT … FOR UPDATE` closes it the same way the
+     single-statement conditional `UPDATE` did for the flat-cost case: the
+     second call blocks on the row lock until the first commits, then reads
+     the post-spend value. Whenever an RPC's cost or eligibility depends on
+     the very row it's about to write, lock that row before computing it —
+     a bare conditional `UPDATE … WHERE` is only atomic against a cost that
+     doesn't itself depend on the row's current value.
 
 ## Alternatives considered
 - **NextAuth + self-hosted Postgres** — rejected: more moving parts and ops for a

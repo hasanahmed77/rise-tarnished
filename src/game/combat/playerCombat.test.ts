@@ -12,7 +12,6 @@ import {
   type StepContext,
 } from './playerCombat';
 import {
-  BASE_MAX_STAMINA,
   FRAME_DATA,
   GUARD_BREAK_STAGGER_TICKS,
   LIGHT_CHAIN_RECOVERY_STEP,
@@ -21,6 +20,7 @@ import {
   STAMINA_REGEN_DELAY_TICKS,
   STAMINA_REGEN_PER_TICK,
   dodgeIframes,
+  maxStamina,
 } from './frameData';
 import type { PlayerBuild } from '../bridge';
 
@@ -104,12 +104,12 @@ describe('action frame progression', () => {
 
 describe('stamina', () => {
   it('spends stamina to start an action', () => {
-    const s = step(createPlayerState(), press({ dodge: true }), CTX).state;
-    expect(s.stamina).toBe(BASE_MAX_STAMINA - FRAME_DATA.dodge.stamina);
+    const s = step(createPlayerState(0, BUILD), press({ dodge: true }), CTX).state;
+    expect(s.stamina).toBe(maxStamina(BUILD.vitality) - FRAME_DATA.dodge.stamina);
   });
 
   it('refuses to start an action it cannot afford', () => {
-    const broke = { ...createPlayerState(), stamina: 5 };
+    const broke = { ...createPlayerState(0, BUILD), stamina: 5 };
     const s = step(broke, press({ heavy: true }), CTX).state;
     expect(s.action).toBeNull();
     // No spend — only the passive regen tick moved the bar.
@@ -118,7 +118,7 @@ describe('stamina', () => {
 
   it('regenerates only after the post-spend delay, at the spec rate', () => {
     // Spend (dodge), then idle. During the delay window nothing regens.
-    let s = step(createPlayerState(), press({ dodge: true }), CTX).state;
+    let s = step(createPlayerState(0, BUILD), press({ dodge: true }), CTX).state;
     const afterSpend = s.stamina;
 
     s = run(s, STAMINA_REGEN_DELAY_TICKS - 1, NEUTRAL);
@@ -129,13 +129,13 @@ describe('stamina', () => {
   });
 
   it('caps regen at max stamina', () => {
-    const s = run(createPlayerState(), 120, NEUTRAL);
-    expect(s.stamina).toBe(BASE_MAX_STAMINA);
+    const s = run(createPlayerState(0, BUILD), 120, NEUTRAL);
+    expect(s.stamina).toBe(maxStamina(BUILD.vitality));
   });
 
   it('pauses regen while the block stance is held, resumes on release', () => {
     // Ready to regen (delay long elapsed), missing stamina, guard up.
-    let s = { ...createPlayerState(), stamina: 50 };
+    let s = { ...createPlayerState(0, BUILD), stamina: 50 };
     const hold = press({ block: true });
     s = step(s, hold, CTX).state; // start block (costs 0 — no delay reset)
     s = run(s, FRAME_DATA.block.startup, hold, hold);
