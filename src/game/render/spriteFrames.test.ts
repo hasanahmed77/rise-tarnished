@@ -16,8 +16,12 @@ import {
   PLAYER_SPRITE_W,
   SLASH_FRAME_COUNT,
   SLASH_SPRITE,
+  STRIKE_FRAME_COUNT,
+  STRIKE_SPRITE_H,
+  STRIKE_SPRITE_W,
   frameIndices,
 } from './spriteFrames';
+import { margitMoves, margitTopLevelMoveIds } from '../boss/margitMoves';
 
 const SPRITES = join(process.cwd(), 'public', 'sprites');
 
@@ -77,5 +81,35 @@ describe('margit sheet', () => {
 describe('slash vfx sheet', () => {
   it('has exactly the frames the arc animation plays', () => {
     expect(frameCount('slash.png', SLASH_SPRITE, SLASH_SPRITE)).toBe(SLASH_FRAME_COUNT);
+  });
+});
+
+describe('boss strike streak', () => {
+  it('has exactly the frames the strike animation plays', () => {
+    expect(frameCount('strike.png', STRIKE_SPRITE_W, STRIKE_SPRITE_H)).toBe(STRIKE_FRAME_COUNT);
+  });
+
+  it('is drawn long enough to stretch DOWN to every move range, never up', () => {
+    // The scene scales this streak to each move's rangeBand[1]. Margit's
+    // longest is the 260px flying thrust; drawing the reference shorter than
+    // that would mean upscaling a motion trail past its native size on the
+    // very move where the reach mismatch was worst.
+    const longestMoveRange = Math.max(
+      ...margitTopLevelMoveIds.map((id) => margitMoves[id].rangeBand[1]),
+    );
+    expect(STRIKE_SPRITE_W).toBeGreaterThanOrEqual(longestMoveRange);
+  });
+
+  it('reaches at least as far as every move that can hit', () => {
+    // The bug this guards: a move whose hitbox extends past anything the
+    // player can see. Every move's max range must be expressible by the
+    // streak, which the scene sizes from that same number.
+    for (const id of Object.keys(margitMoves)) {
+      const move = margitMoves[id];
+      expect(
+        move.rangeBand[1],
+        `${id} range exceeds the strike streak's native length`,
+      ).toBeLessThanOrEqual(STRIKE_SPRITE_W);
+    }
   });
 });

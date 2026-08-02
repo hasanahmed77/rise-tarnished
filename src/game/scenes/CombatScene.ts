@@ -44,6 +44,9 @@ import {
   PLAYER_SPRITE_H,
   PLAYER_SPRITE_W,
   SLASH_SPRITE,
+  STRIKE_HEIGHT_RATIO,
+  STRIKE_SPRITE_H,
+  STRIKE_SPRITE_W,
 } from '../render/spriteFrames';
 import { computeRuneReward, type FightResult } from '../attempt/reward';
 import { determineFightOutcome } from '../attempt/outcome';
@@ -130,6 +133,9 @@ export class CombatScene extends Phaser.Scene {
   /** Reused pool of one-shot slash VFX sprites (#42's combat juice). */
   private slashSprites: Phaser.GameObjects.Sprite[] = [];
 
+  /** Reused pool of Margit's strike streaks, stretched per move's reach. */
+  private strikeSprites: Phaser.GameObjects.Sprite[] = [];
+
   /** True while the player is free-moving this tick — picks run frames over
    * idle. Free movement only happens with no action committed, so this is
    * false through every attack/dodge/block. */
@@ -176,6 +182,10 @@ export class CombatScene extends Phaser.Scene {
       frameWidth: SLASH_SPRITE,
       frameHeight: SLASH_SPRITE,
     });
+    this.load.spritesheet('strike', '/sprites/strike.png', {
+      frameWidth: STRIKE_SPRITE_W,
+      frameHeight: STRIKE_SPRITE_H,
+    });
   }
 
   create(): void {
@@ -191,6 +201,12 @@ export class CombatScene extends Phaser.Scene {
       key: 'slash-arc',
       frames: this.anims.generateFrameNumbers('slash', { start: 0, end: 3 }),
       frameRate: 34,
+      hideOnComplete: true,
+    });
+    this.anims.create({
+      key: 'boss-strike',
+      frames: this.anims.generateFrameNumbers('strike', { start: 0, end: 3 }),
+      frameRate: 30,
       hideOnComplete: true,
     });
 
@@ -531,6 +547,10 @@ export class CombatScene extends Phaser.Scene {
   }
 
   private resolveBossAttackOnPlayer(move: MoveDef): void {
+    // Spawned before the range test, so a whiff still shows the swing — and
+    // shows exactly how far short it fell.
+    this.spawnBossStrike(move);
+
     const distance = Math.abs(this.sim.x - this.boss.x);
     const bossFaces = this.boss.facing === (this.sim.x >= this.boss.x ? 1 : -1);
     // v1: the move's selection range band doubles as its hit reach — a
@@ -601,6 +621,34 @@ export class CombatScene extends Phaser.Scene {
       .setAlpha(heavy ? 1 : 0.85)
       .setVisible(true)
       .play('slash-arc');
+  }
+
+  /** Margit's strike streak, stretched so its far end sits exactly at this
+   * move's maximum hit range.
+   *
+   * This is the fix for "the hit lands even though the cane doesn't touch
+   * me": her eight moves hit from 80 to 260 world px, but one drawn cane
+   * pose reaches ~90px, so the long thrusts connected from well past
+   * anything visible. Driving the length from `move.rangeBand[1]` — the same
+   * number `resolveBossAttackOnPlayer` tests against below — means what the
+   * player sees reaching them is exactly what can hit them, for every move
+   * including any added later. */
+  private spawnBossStrike(move: MoveDef): void {
+    const reach = move.rangeBand[1];
+    let sprite = this.strikeSprites.find((s) => !s.visible);
+    if (!sprite) {
+      // Origin on the left edge so the streak grows outward from Margit;
+      // direction comes from a negative x-scale, which flipX can't do
+      // correctly with an off-centre origin.
+      sprite = this.add.sprite(0, 0, 'strike', 0).setOrigin(0, 0.5);
+      this.strikeSprites.push(sprite);
+    }
+    const facing = this.boss.facing;
+    sprite
+      .setPosition(this.boss.x, this.groundY - PLAYER_SPRITE_H * STRIKE_HEIGHT_RATIO)
+      .setScale((facing * reach) / STRIKE_SPRITE_W, 1)
+      .setVisible(true)
+      .play('boss-strike');
   }
 
   /** Pick the player's sprite frame purely from sim state — the same state

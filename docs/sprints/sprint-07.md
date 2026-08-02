@@ -124,6 +124,24 @@ open art question is updated to record this.
   its hitbox is a readability bug (§1), and reviewing frames in isolation
   hides it completely.
 
+- **08-03 (third pass):** Second playtest note, and a sharper version of the
+  same class of bug: *"Margit's hit reaches me even if his sword doesn't
+  touch me — a little far away still registers, more far away doesn't."*
+  Exactly right. Widening her frame fixed the *pose*, but she has **eight
+  moves spanning 80–260px** (`margitMoves.ts`) and they all share one active
+  frame with a fixed ~90px cane reach. So `holy_thrust` (140) connected from
+  ~32px past the cane tip and `flying_thrust` (260) from up to 152px past it
+  — and there's no lunge in the move schema, so the boss doesn't close that
+  gap either. The per-move fix would be a bespoke pose each; instead the
+  scene now stretches a **strike streak to `move.rangeBand[1]`** — the same
+  number `resolveBossAttackOnPlayer` tests against — so visual reach equals
+  hit reach for every move automatically, including any added later. Guarded
+  by a test that fails if any move's range exceeds the streak's native
+  length. 156 unit tests. **Second instance of the same root lesson: this
+  project's readability bugs are hitbox/visual *mismatches*, and they are
+  invisible when reviewing art in isolation — they only show up when the
+  sprite is composited against a player standing at the move's true range.**
+
 ## Review (end of sprint)
 _(pending)_
 

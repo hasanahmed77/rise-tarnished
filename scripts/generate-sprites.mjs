@@ -516,6 +516,56 @@ function slashFrame(step) {
 const SLASH_FRAMES = [0, 1, 2, 3].map((s) => () => slashFrame(s));
 
 // ---------------------------------------------------------------------------
+// Margit's strike streak — the trail her cane/holy thrust leaves as it
+// crosses the gap to the player.
+//
+// This exists because her moves hit from 80–260 world px (margitMoves.ts)
+// while one drawn cane pose can only reach so far: a 140px holy thrust
+// visibly connected from ~32px past the cane tip, and a 260px flying thrust
+// from far beyond it. Rather than draw a bespoke pose per move, the scene
+// stretches this streak to each move's own rangeBand — so the reach the
+// player *sees* is always the reach that actually hits, for every move
+// including ones added later.
+//
+// Drawn at a reference length and scaled horizontally in the scene;
+// stretching reads fine because it's a motion trail, not an object.
+// ---------------------------------------------------------------------------
+
+const STRIKE_W = 96;
+// Kept slim: at 3× this is 36px against a 96px-tall player, which reads as a
+// weapon arc. A thicker streak stops looking like a strike and starts
+// looking like a wedge of light covering half the character.
+const STRIKE_H = 12;
+
+function strikeFrame(step) {
+  const c = new Canvas(STRIKE_W, STRIKE_H);
+  const cy = STRIKE_H / 2;
+  const alpha = [0.75, 0.95, 0.5, 0.2][step];
+  const thickness = [0.4, 0.9, 0.6, 0.3][step];
+
+  for (let x = 0; x < STRIKE_W; x++) {
+    const t = x / (STRIKE_W - 1);
+    // Tapered lens: thin at the hilt end, fullest two-thirds out, drawn to a
+    // point at the tip — the shape a fast sweep leaves behind.
+    const profile = Math.sin(Math.PI * Math.pow(t, 0.75));
+    const half = profile * thickness * (STRIKE_H / 2 - 1);
+    if (half <= 0) continue;
+    for (let dy = -half; dy <= half; dy += 1) {
+      const edge = 1 - Math.abs(dy) / (half || 1);
+      c.px(x, cy + dy, rgba('#d4a017', alpha * (0.35 + edge * 0.65)));
+    }
+    // Bright holy core down the middle.
+    const coreHalf = half * 0.35;
+    for (let dy = -coreHalf; dy <= coreHalf; dy += 1) {
+      c.px(x, cy + dy, rgba('#f7e6b0', alpha * 0.9));
+    }
+  }
+  return c;
+}
+
+const STRIKE_FRAMES = [0, 1, 2, 3].map((s) => () => strikeFrame(s));
+
+// ---------------------------------------------------------------------------
 // Stormveil arena — four parallax layers.
 // ---------------------------------------------------------------------------
 
@@ -681,6 +731,13 @@ write(
   'slash.png',
   sheet(
     SLASH_FRAMES.map((f) => f().scaled(3)),
+    4,
+  ),
+);
+write(
+  'strike.png',
+  sheet(
+    STRIKE_FRAMES.map((f) => f().scaled(3)),
     4,
   ),
 );

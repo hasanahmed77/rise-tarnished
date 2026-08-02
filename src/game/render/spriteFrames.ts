@@ -20,6 +20,17 @@ export const BOSS_SPRITE_H = 144;
 export const SLASH_SPRITE = 72;
 export const SLASH_FRAME_COUNT = 4;
 
+/** Margit's strike streak. Drawn at this reference length and stretched
+ * horizontally by the scene to each move's own `rangeBand[1]`, so what the
+ * player sees reaching them is exactly what hits them — her moves span
+ * 80–260px and no single drawn cane pose can cover that. */
+export const STRIKE_SPRITE_W = 288;
+export const STRIKE_SPRITE_H = 36;
+export const STRIKE_FRAME_COUNT = 4;
+/** Vertical centre of the streak, as a fraction of the player's height above
+ * the ground — chest height, where a strike should land. */
+export const STRIKE_HEIGHT_RATIO = 0.55;
+
 /** Player frames, indexed into player.png. */
 export const PF = {
   idle: [0, 1],
