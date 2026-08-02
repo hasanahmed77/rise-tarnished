@@ -44,6 +44,9 @@ Next.js (shell) · Phaser (engine) · TypeScript strict · Supabase (Google OAut
 ```bash
 nvm use            # or ensure node -v is >= 20.12
 npm ci
+cp .env.example .env.local   # fill in NEXT_PUBLIC_SUPABASE_URL and
+                              # NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY from
+                              # Supabase → Project Settings → API
 npm run dev        # http://localhost:3000
 ```
 
