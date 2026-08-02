@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type Phaser from 'phaser';
-import { GameBridge, type FightOutcome } from '@/game/bridge';
+import { GameBridge, type FightOutcome, type PlayerBuild } from '@/game/bridge';
+import { MARGIT_BOSS_ID } from '@/game/boss/bossTuning';
 import { createClient } from '@/lib/supabase/client';
 
 /** Server-persisted result of resolve_attempt (#11) — distinct from the
@@ -22,7 +23,13 @@ type ResolutionState =
 // The single place where the Phaser runtime is mounted into the React tree
 // (ADR-0001). React owns this component's lifecycle; Phaser owns everything
 // inside the container div. Communication is bridge-only.
-export function GameCanvas() {
+//
+// `build` is the player's real, persisted stat build (#12) — the caller
+// (the character sheet screen, PlayPage) reads it from player_stats before
+// mounting this component, so it's ready the instant the engine asks for it
+// via 'fight:start'. One GameCanvas mount is one fight; a fresh build for
+// the next attempt means remounting (see PlayPage's "fight again" reload).
+export function GameCanvas({ build }: { build: PlayerBuild }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [engineReady, setEngineReady] = useState(false);
   const [resolution, setResolution] = useState<ResolutionState | null>(null);
@@ -38,7 +45,12 @@ export function GameCanvas() {
     let game: Phaser.Game | null = null;
 
     const bridge = new GameBridge();
-    const offReady = bridge.toShell.on('game:ready', () => setEngineReady(true));
+    const offReady = bridge.toShell.on('game:ready', () => {
+      setEngineReady(true);
+      // The engine is idle until this carries the real build (CombatScene's
+      // startFight()) — never the hardcoded sandbox build it used before #12.
+      bridge.toGame.emit('fight:start', { bossId: MARGIT_BOSS_ID, build });
+    });
     const offOutcome = bridge.toShell.on('fight:outcome', (outcome) => {
       setResolution({ status: 'resolving', outcome });
       void resolveAttempt(outcome).then(
@@ -72,6 +84,10 @@ export function GameCanvas() {
       bridge.dispose();
       setEngineReady(false);
     };
+    // `build` isn't expected to change for this component's lifetime (see
+    // the class comment) but is a real effect dependency: if it ever did,
+    // remounting the whole game to start a fresh fight on it is correct.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

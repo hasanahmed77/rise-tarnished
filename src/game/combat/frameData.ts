@@ -3,12 +3,20 @@
 // targets (expected to change through playtesting); the *systems* they feed are
 // the commitment. All durations are in simulation ticks.
 
-import { scaledDamage } from './scaling';
+import { scaledDamage, softcap } from './scaling';
 
 export const TICKS_PER_SECOND = 60;
 
 export const BASE_MAX_HP = 100;
 export const BASE_MAX_STAMINA = 100;
+
+/** Vitality's §6 soft cap — shared by max HP and max stamina, which both
+ * grow linearly (+6/pt HP, +2/pt stamina) up to this point, then soften
+ * (softcap()'s 30%-of-normal-rate curve) the same way stat-scaled damage
+ * does above its own cap. */
+export const VIT_SOFT_CAP = 40;
+export const HP_PER_VITALITY = 6;
+export const STAMINA_PER_VITALITY = 2;
 
 /** Stamina regen: 25/s, starting 0.5s after the last spend; paused while the
  * block stance is held (§3). */
@@ -97,10 +105,17 @@ export const FRAME_DATA: Record<ActionId, FrameData> = {
   cast: { startup: 18, active: 2, recovery: 20, stamina: 0, fp: SORCERY_FP_COST },
 };
 
-/** Attacks deal HP and poise damage; v1 values live here so tuning is data. */
-export const ATTACK_DAMAGE: Record<AttackId, { hp: number; poise: number }> = {
-  light: { hp: 8, poise: 6 },
-  heavy: { hp: 18, poise: 14 },
+/** Dexterity's §6 soft cap for melee weapon scaling — separate from
+ * DODGE_IFRAME_DEX_CAP, which caps the *secondary* i-frame bonus, not this
+ * primary damage curve. */
+export const DEX_SOFT_CAP = 45;
+
+/** Attacks deal HP (base, before dex scaling — see meleeDamage) and poise
+ * damage; poise stays flat (§6 doesn't specify dex-scaled poise, only HP).
+ * v1 values live here so tuning is data. */
+export const ATTACK_DAMAGE: Record<AttackId, { hp: number; poise: number; dexCoeff: number }> = {
+  light: { hp: 8, poise: 6, dexCoeff: 0.8 },
+  heavy: { hp: 18, poise: 14, dexCoeff: 1.0 },
 };
 
 /** Dodge i-frame count for a given dexterity (§6). */
@@ -117,4 +132,24 @@ export function maxFp(intelligence: number): number {
 /** Sorcery HP damage for a build, via the §6 soft-cap curve on intelligence. */
 export function sorceryDamage(intelligence: number): number {
   return scaledDamage(SORCERY_BASE_DAMAGE, SORCERY_INT_COEFF, intelligence, INT_SOFT_CAP);
+}
+
+/** Melee HP damage for a build, via the §6 soft-cap curve on dexterity
+ * (poise damage stays the flat ATTACK_DAMAGE value — see its comment). */
+export function meleeDamage(attackId: AttackId, dexterity: number): number {
+  const { hp, dexCoeff } = ATTACK_DAMAGE[attackId];
+  return scaledDamage(hp, dexCoeff, dexterity, DEX_SOFT_CAP);
+}
+
+/** Max HP for a build: linear +6/pt up to VIT_SOFT_CAP, then the same
+ * softened growth stat-scaled damage gets above its cap — softcap(s, cap)
+ * equals s/cap below the cap, so this reduces to exactly
+ * `BASE_MAX_HP + vitality * HP_PER_VITALITY` there, and only bends above it. */
+export function maxHp(vitality: number): number {
+  return BASE_MAX_HP + HP_PER_VITALITY * VIT_SOFT_CAP * softcap(vitality, VIT_SOFT_CAP);
+}
+
+/** Max stamina for a build — same curve as maxHp, +2/pt below the cap. */
+export function maxStamina(vitality: number): number {
+  return BASE_MAX_STAMINA + STAMINA_PER_VITALITY * VIT_SOFT_CAP * softcap(vitality, VIT_SOFT_CAP);
 }

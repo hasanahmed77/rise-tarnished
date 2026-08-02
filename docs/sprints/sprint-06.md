@@ -126,6 +126,36 @@ to playtest until the spell exists.
   (the automation pane throttles the game loop, so ticks were pumped manually
   via a temporary hook, since reverted). 140 unit tests (up from 120), full
   gate green.
+- **07-22 (later):** #43 review fixes landed and merged — the facing gate on
+  projectile hits, `fightStarted`/boss-aggression tracking counting `cast`,
+  and the doc's projectile-range math (6×90≠"~9 world-units", fixed to the
+  correct ~540). No new bugs from #40 shipped forward into #12.
+- **08-02:** #12 built — stat spend → next-attempt scaling, closing Sprint
+  6's goal. `spend_stat_point` (new SECURITY DEFINER RPC, ADR-0003-compliant:
+  a single atomic conditional UPDATE, no idempotency key needed since it's
+  repeatable, not terminal — see the ADR's new bullet) lets a player trade
+  100 runes for one point of vitality/dexterity/intelligence. The §6 damage
+  formula now drives melee (`meleeDamage`, dex-scaled, mirroring #40's
+  `sorceryDamage`), and vitality finally does something: `maxHp`/`maxStamina`
+  use the same softcap curve stat-scaled damage does, linear below the cap
+  (exactly matching the old flat +6/+2 rate) and softened above it. The
+  hardcoded sandbox build is gone — `fight:start` (defined since Sprint 1,
+  never emitted until now) finally carries the player's real persisted
+  build: a new character-sheet screen (`CharacterSheet.tsx`, gating
+  `GameCanvas` behind `PlayShell`) reads `player_stats`, lets the player
+  spend before each attempt, then hands that build to the fight. Caught and
+  fixed two bugs along the way: an ambiguous-column-reference error in the
+  RPC's first draft (the OUT parameters shared names with the columns they
+  read/wrote — fixed by qualifying every column reference), and a
+  createPlayerState/regen-cap build mismatch that #40's review had flagged
+  as latent-but-unreachable — now that stamina regen is vitality-scaled it
+  was reachable in tests, so fixed there rather than left as a known gap.
+  25 RLS/RPC tests (up from 18, all passing against real local Postgres) and
+  147 unit tests (up from 140). Full gate green (typecheck/lint/test/build).
+  **Not yet done:** a live playtest confirming all three archetypes (dex/
+  vit/int) can clear Margit — the DoD's `docs/playtests/` note. Blocked on
+  a real Google sign-in to drive the authenticated `/play` flow, which
+  automation can't complete; this is the sprint's one remaining open item.
 
 ## Review (end of sprint)
 _(pending)_

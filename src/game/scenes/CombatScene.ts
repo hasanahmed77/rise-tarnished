@@ -2,10 +2,11 @@ import Phaser from 'phaser';
 import type { GameBridge, PlayerBuild } from '../bridge';
 import {
   ATTACK_DAMAGE,
-  BASE_MAX_HP,
-  BASE_MAX_STAMINA,
   POSTURE_MAX,
   maxFp,
+  maxHp,
+  maxStamina,
+  meleeDamage,
 } from '../combat/frameData';
 import {
   consumeProjectiles,
@@ -132,15 +133,84 @@ export class CombatScene extends Phaser.Scene {
    * false, resizes re-spawn entities at their ratio positions. */
   private fightStarted = false;
 
+  /** False until 'fight:start' arrives with the player's real build — sim,
+   * boss, and entity sprites don't exist yet, so update()/onResize() must
+   * not touch them before this flips true (see startFight()). */
+  private ready = false;
+
   constructor() {
     super('combat');
   }
 
   create(): void {
     this.attemptId = crypto.randomUUID();
-    // TODO(#12): load the player's persisted build; hardcoded sandbox build
-    // until the fight:start bridge event carries the real one.
-    const build: PlayerBuild = { vitality: 10, dexterity: 10, intelligence: 10 };
+
+    this.groundBar = this.add.rectangle(0, 0, 0, 4, 0x8a7a5c);
+    this.titleText = this.add
+      .text(0, 40, 'MARGIT, THE FELL OMEN', {
+        fontFamily: 'serif',
+        fontSize: '22px',
+        color: '#d4c9a8',
+      })
+      .setOrigin(0.5);
+    this.hintText = this.add
+      .text(0, 0, 'A/D move · Space dodge · J light · K heavy · L cast · Shift block', {
+        fontFamily: 'monospace',
+        fontSize: '13px',
+        color: '#6b6b6b',
+      })
+      .setOrigin(0.5);
+
+    // Player HUD — top-left. HP (red), stamina (green), FP (blue). Bars sit
+    // at their configured width until the fight starts and renderPlayer()
+    // begins sizing them from real state.
+    this.add.rectangle(20, 70, HUD_BAR_WIDTH, 12, 0x2a2a2a).setOrigin(0, 0.5);
+    this.hpBar = this.add.rectangle(20, 70, HUD_BAR_WIDTH, 12, 0x8a3a3a).setOrigin(0, 0.5);
+    this.add.rectangle(20, 86, HUD_BAR_WIDTH, 8, 0x2a2a2a).setOrigin(0, 0.5);
+    this.staminaBar = this.add.rectangle(20, 86, HUD_BAR_WIDTH, 8, 0x3a8a5a).setOrigin(0, 0.5);
+    this.add.rectangle(20, 98, HUD_BAR_WIDTH, 6, 0x2a2a2a).setOrigin(0, 0.5);
+    this.fpBar = this.add.rectangle(20, 98, HUD_BAR_WIDTH, 6, 0x4a6bd0).setOrigin(0, 0.5);
+    this.statusText = this.add.text(20, 108, 'loading your build…', {
+      fontFamily: 'monospace',
+      fontSize: '12px',
+      color: '#8a8a8a',
+    });
+
+    // Boss HUD — top-right, positioned in relayout() (depends on width).
+    this.add.rectangle(0, 70, HUD_BAR_WIDTH, 12, 0x2a2a2a).setName('bossHpBg').setOrigin(1, 0.5);
+    this.bossHpBar = this.add.rectangle(0, 70, HUD_BAR_WIDTH, 12, 0x6b2a3a).setOrigin(1, 0.5);
+    this.add
+      .rectangle(0, 88, HUD_BAR_WIDTH, 8, 0x2a2a2a)
+      .setName('bossPostureBg')
+      .setOrigin(1, 0.5);
+    this.bossPostureBar = this.add.rectangle(0, 88, HUD_BAR_WIDTH, 8, 0xd4a017).setOrigin(1, 0.5);
+    this.bossStatusText = this.add
+      .text(0, 100, '', { fontFamily: 'monospace', fontSize: '12px', color: '#8a8a8a' })
+      .setOrigin(1, 0);
+
+    this.keys = this.input.keyboard!.addKeys('A,D,LEFT,RIGHT,SPACE,J,K,L,SHIFT') as Record<
+      string,
+      Phaser.Input.Keyboard.Key
+    >;
+
+    this.scale.on(Phaser.Scale.Events.RESIZE, this.onResize, this);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.scale.off(Phaser.Scale.Events.RESIZE, this.onResize, this);
+    });
+
+    this.bridge = this.registry.get('bridge') as GameBridge | undefined;
+    const offFightStart = this.bridge?.toGame.on('fight:start', (payload) =>
+      this.startFight(payload),
+    );
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => offFightStart?.());
+    this.bridge?.toShell.emit('game:ready', undefined);
+  }
+
+  /** Everything that depends on the player's real, persisted build (#12):
+   * sim/boss state and the entity sprites positioned from it. Runs once,
+   * triggered by the shell's 'fight:start' bridge event — the scene is
+   * otherwise idle (static HUD chrome only) until this fires. */
+  private startFight({ build }: { bossId: string; build: PlayerBuild }): void {
     this.sim = createPlayerState(this.scale.width * PLAYER_START_X_RATIO, build);
     this.ctx = {
       build,
@@ -169,22 +239,6 @@ export class CombatScene extends Phaser.Scene {
       },
     };
 
-    this.groundBar = this.add.rectangle(0, 0, 0, 4, 0x8a7a5c);
-    this.titleText = this.add
-      .text(0, 40, 'MARGIT, THE FELL OMEN', {
-        fontFamily: 'serif',
-        fontSize: '22px',
-        color: '#d4c9a8',
-      })
-      .setOrigin(0.5);
-    this.hintText = this.add
-      .text(0, 0, 'A/D move · Space dodge · J light · K heavy · L cast · Shift block', {
-        fontFamily: 'monospace',
-        fontSize: '13px',
-        color: '#6b6b6b',
-      })
-      .setOrigin(0.5);
-
     this.player = this.add.rectangle(this.sim.x, 0, PLAYER_W, PLAYER_H, PLAYER_COLORS.idle);
     this.facingPip = this.add.rectangle(0, 0, 8, 8, 0x141210);
 
@@ -193,47 +247,16 @@ export class CombatScene extends Phaser.Scene {
       .setStrokeStyle(2, 0x2a1018);
     this.bossFacingPip = this.add.rectangle(0, 0, 8, 8, 0x141210);
 
-    // Player HUD — top-left. HP (red), stamina (green), FP (blue).
-    this.add.rectangle(20, 70, HUD_BAR_WIDTH, 12, 0x2a2a2a).setOrigin(0, 0.5);
-    this.hpBar = this.add.rectangle(20, 70, HUD_BAR_WIDTH, 12, 0x8a3a3a).setOrigin(0, 0.5);
-    this.add.rectangle(20, 86, HUD_BAR_WIDTH, 8, 0x2a2a2a).setOrigin(0, 0.5);
-    this.staminaBar = this.add.rectangle(20, 86, HUD_BAR_WIDTH, 8, 0x3a8a5a).setOrigin(0, 0.5);
-    this.add.rectangle(20, 98, HUD_BAR_WIDTH, 6, 0x2a2a2a).setOrigin(0, 0.5);
-    this.fpBar = this.add.rectangle(20, 98, HUD_BAR_WIDTH, 6, 0x4a6bd0).setOrigin(0, 0.5);
-    this.statusText = this.add.text(20, 108, '', {
-      fontFamily: 'monospace',
-      fontSize: '12px',
-      color: '#8a8a8a',
-    });
-
-    // Boss HUD — top-right, positioned in relayout() (depends on width).
-    this.add.rectangle(0, 70, HUD_BAR_WIDTH, 12, 0x2a2a2a).setName('bossHpBg').setOrigin(1, 0.5);
-    this.bossHpBar = this.add.rectangle(0, 70, HUD_BAR_WIDTH, 12, 0x6b2a3a).setOrigin(1, 0.5);
-    this.add
-      .rectangle(0, 88, HUD_BAR_WIDTH, 8, 0x2a2a2a)
-      .setName('bossPostureBg')
-      .setOrigin(1, 0.5);
-    this.bossPostureBar = this.add.rectangle(0, 88, HUD_BAR_WIDTH, 8, 0xd4a017).setOrigin(1, 0.5);
-    this.bossStatusText = this.add
-      .text(0, 100, '', { fontFamily: 'monospace', fontSize: '12px', color: '#8a8a8a' })
-      .setOrigin(1, 0);
-
-    this.keys = this.input.keyboard!.addKeys('A,D,LEFT,RIGHT,SPACE,J,K,L,SHIFT') as Record<
-      string,
-      Phaser.Input.Keyboard.Key
-    >;
-
+    this.ready = true;
     this.relayout(this.scale.width, this.scale.height);
-    this.scale.on(Phaser.Scale.Events.RESIZE, this.onResize, this);
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      this.scale.off(Phaser.Scale.Events.RESIZE, this.onResize, this);
-    });
-
-    this.bridge = this.registry.get('bridge') as GameBridge | undefined;
-    this.bridge?.toShell.emit('game:ready', undefined);
   }
 
   private onResize(gameSize: Phaser.Structs.Size): void {
+    // Nothing to relayout yet — sim/boss/entities are created in startFight()
+    // once the real build arrives; startFight() itself calls relayout() with
+    // the scale current at that moment, so a pre-ready resize needs no
+    // handling here.
+    if (!this.ready) return;
     this.relayout(gameSize.width, gameSize.height);
   }
 
@@ -298,6 +321,10 @@ export class CombatScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
+    // Waiting on 'fight:start' to carry the real build — nothing to
+    // simulate or render yet (see startFight()).
+    if (!this.ready) return;
+
     // Cap the accumulator so a long stall (e.g. tab backgrounded) can't trigger
     // a runaway catch-up of hundreds of ticks in one frame.
     this.accumulator = Math.min(this.accumulator + delta, TICK_MS * 5);
@@ -399,7 +426,7 @@ export class CombatScene extends Phaser.Scene {
       this.boss.action?.phase === 'recovery' && currentMove ? currentMove.postureSelfRisk : 0;
 
     const result = resolveBossHit(this.boss, {
-      hp: dmg.hp,
+      hp: meleeDamage(attackId, this.ctx.build.dexterity),
       poise: dmg.poise,
       postureDamage: dmg.poise + punishBonus,
     });
@@ -502,8 +529,8 @@ export class CombatScene extends Phaser.Scene {
 
     this.facingPip.x = s.x + (s.facing === 1 ? PLAYER_W / 2 - 4 : -PLAYER_W / 2 + 4);
 
-    this.hpBar.width = HUD_BAR_WIDTH * (s.hp / BASE_MAX_HP);
-    this.staminaBar.width = HUD_BAR_WIDTH * (s.stamina / BASE_MAX_STAMINA);
+    this.hpBar.width = HUD_BAR_WIDTH * (s.hp / maxHp(this.ctx.build.vitality));
+    this.staminaBar.width = HUD_BAR_WIDTH * (s.stamina / maxStamina(this.ctx.build.vitality));
     this.fpBar.width = HUD_BAR_WIDTH * (s.fp / maxFp(this.ctx.build.intelligence));
     const mode = isStaggered(s)
       ? `STAGGERED (${s.staggerTicks})`

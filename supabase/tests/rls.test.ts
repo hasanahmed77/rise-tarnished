@@ -471,3 +471,128 @@ describe('resolve_attempt RPC (#11 DoD)', () => {
     expect(bSees).toEqual([]);
   });
 });
+
+// spend_stat_point (#12 DoD): the only path from earned runes to persisted
+// stat points. Same discipline as resolve_attempt above — SECURITY DEFINER,
+// so the function's own atomic UPDATE...WHERE guard is the entire boundary,
+// not RLS (player_stats stays read-only to the client, proven above).
+interface SpendStatPointRow {
+  vitality: number;
+  dexterity: number;
+  intelligence: number;
+  runes: number;
+}
+
+function callSpendStatPoint(client: SupabaseClient, stat: string) {
+  return client.rpc('spend_stat_point', { p_stat: stat }).single() as unknown as Promise<{
+    data: SpendStatPointRow | null;
+    error: { code?: string; message: string } | null;
+  }>;
+}
+
+describe('spend_stat_point RPC (#12 DoD)', () => {
+  let userA: TestUser;
+  let userB: TestUser;
+
+  beforeAll(async () => {
+    const suffix = Date.now();
+    [userA, userB] = await Promise.all([
+      createSignedInUser(`spend-stat-a-${suffix}@example.com`),
+      createSignedInUser(`spend-stat-b-${suffix}@example.com`),
+    ]);
+  });
+
+  afterAll(async () => {
+    await admin.auth.admin.deleteUser(userA.id);
+    await admin.auth.admin.deleteUser(userB.id);
+  });
+
+  it('an unauthenticated caller cannot call it at all', async () => {
+    const anon = createClient(url, anonKey);
+    const { error } = await anon.rpc('spend_stat_point', { p_stat: 'vitality' });
+    expect(error).not.toBeNull();
+    expect(error?.code).toBe('42501'); // permission denied for function
+  });
+
+  it('a fresh user (0 runes) cannot afford a point and nothing changes', async () => {
+    const { data, error } = await callSpendStatPoint(userA.client, 'vitality');
+    expect(data).toBeNull();
+    expect(error).not.toBeNull();
+    expect(error?.message).toMatch(/not enough runes/);
+
+    const { data: stats } = await admin
+      .from('player_stats')
+      .select('vitality, runes')
+      .eq('user_id', userA.id)
+      .single();
+    expect(stats?.vitality).toBe(10); // unchanged
+    expect(Number(stats?.runes)).toBe(0); // unchanged
+  });
+
+  it('rejects an unknown stat name and spends nothing', async () => {
+    await admin.from('player_stats').update({ runes: 500 }).eq('user_id', userA.id);
+
+    const { error } = await callSpendStatPoint(userA.client, 'luck');
+    expect(error).not.toBeNull();
+
+    const { data: stats } = await admin
+      .from('player_stats')
+      .select('runes')
+      .eq('user_id', userA.id)
+      .single();
+    expect(Number(stats?.runes)).toBe(500); // unchanged — the bad call never wrote
+  });
+
+  it('spends exactly one point of the named stat and exactly the flat cost in runes', async () => {
+    // userA has 500 runes from the previous test's admin grant.
+    const { data, error } = await callSpendStatPoint(userA.client, 'dexterity');
+    expect(error).toBeNull();
+    expect(data?.dexterity).toBe(11); // 10 (starting) + 1
+    expect(data?.vitality).toBe(10); // untouched
+    expect(data?.intelligence).toBe(10); // untouched
+    expect(Number(data?.runes)).toBe(400); // 500 - 100 flat cost
+
+    const { data: stats } = await admin
+      .from('player_stats')
+      .select('vitality, dexterity, intelligence, runes')
+      .eq('user_id', userA.id)
+      .single();
+    expect(stats?.dexterity).toBe(11);
+    expect(Number(stats?.runes)).toBe(400);
+  });
+
+  it('atomic deduct-and-increment: spending exactly the last affordable point succeeds, the next fails', async () => {
+    await admin.from('player_stats').update({ runes: 100 }).eq('user_id', userB.id);
+
+    const first = await callSpendStatPoint(userB.client, 'intelligence');
+    expect(first.error).toBeNull();
+    expect(first.data?.intelligence).toBe(11);
+    expect(Number(first.data?.runes)).toBe(0);
+
+    // Same call again — WHERE runes >= cost now fails in the same statement
+    // that would spend them, so this can't partially apply (no stat bump
+    // with an unpaid cost, and no charge without a stat bump).
+    const second = await callSpendStatPoint(userB.client, 'intelligence');
+    expect(second.error).not.toBeNull();
+    expect(second.error?.message).toMatch(/not enough runes/);
+
+    const { data: stats } = await admin
+      .from('player_stats')
+      .select('intelligence, runes')
+      .eq('user_id', userB.id)
+      .single();
+    expect(stats?.intelligence).toBe(11); // only the first call landed
+    expect(Number(stats?.runes)).toBe(0);
+  });
+
+  it("spending on one user never touches another user's stats", async () => {
+    // userA is at dexterity 11 (from the earlier test); userB's spends above
+    // must not have moved it.
+    const { data: stats } = await admin
+      .from('player_stats')
+      .select('dexterity')
+      .eq('user_id', userA.id)
+      .single();
+    expect(stats?.dexterity).toBe(11);
+  });
+});

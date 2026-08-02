@@ -86,6 +86,16 @@ the hard way while building the first one:
      structurally possible, just unreachable until more data existed to
      trigger it. Caught in `#11`'s own review, unreachable with one boss at
      merge time but fixed at the root rather than deferred.
+   - **Not every RPC needs the idempotency-key pattern above.** `#12`'s
+     `spend_stat_point` is repeatable rather than terminal — spending one
+     point is safe to retry on its own, so a single conditional
+     `UPDATE … SET runes = runes - cost WHERE user_id = auth.uid() AND
+     runes >= cost` is the entire atomicity guard: the balance check and the
+     spend happen in one statement, so two concurrent calls can't both read
+     a stale balance and both succeed the way a SELECT-then-UPDATE would let
+     them. Reach for `resolve_attempt`'s dedupe-key idempotency only for
+     one-shot terminal events where a retry must never re-apply; a
+     repeatable action that's safe to fail-and-retry doesn't need it.
 
 ## Alternatives considered
 - **NextAuth + self-hosted Postgres** — rejected: more moving parts and ops for a

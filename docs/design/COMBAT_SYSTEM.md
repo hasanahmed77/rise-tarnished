@@ -121,6 +121,33 @@ sorcery. Shipped v1 values (`frameData.ts`, all tuning targets):
   fairness suite unaffected); cross-entity hit resolution stays the scene's
   job, same as melee, via the pure `projectileHits` predicate.
 
+**Melee scaling, max HP/stamina, and stat spend (#12).** The damage formula
+above now drives melee, not just sorcery, and vitality's HP/stamina bonuses
+are real. Shipped v1 values (`frameData.ts`, all tuning targets):
+
+- **Melee HP damage** = `scaledDamage(weapon_base, dex_coeff, dexterity, cap 45)`
+  — light: base 8, coeff 0.8; heavy: base 18, coeff 1.0. Poise damage per hit
+  stays the flat `ATTACK_DAMAGE` value (§6 doesn't specify dex-scaled poise).
+- **Max HP** = `100 + 6 × 40 × softcap(vitality, 40)` — linear +6/pt up to the
+  cap (exactly the §6 secondary-effect rate), then the same 30%-of-normal
+  softening `softcap` gives stat-scaled damage above its cap.
+- **Max stamina** = `100 + 2 × 40 × softcap(vitality, 40)` — same curve, +2/pt
+  below the cap.
+- **Stat spend**: `spend_stat_point` (SECURITY DEFINER RPC,
+  `supabase/migrations/…_spend_stat_point.sql`) atomically deducts a flat
+  **100 runes** and increments one of vitality/dexterity/intelligence by 1.
+  No hard ceiling on a stat — only the soft cap's diminishing-returns curve
+  above (§6's table lists soft caps, not hard maximums). Idempotency isn't
+  needed the way `resolve_attempt` needs it (#11): each call spends exactly
+  one point via a single conditional `UPDATE … WHERE runes >= cost`, so a
+  retried call either succeeds once or fails cleanly, never double-spends.
+- The player's real persisted build now drives every fight: the character
+  sheet screen (`CharacterSheet.tsx`) reads `player_stats`, and `PlayShell`
+  hands the resulting build to `GameCanvas`, which emits it via the
+  `fight:start` bridge event (defined since Sprint 1, first used here) —
+  `CombatScene` builds its sim/boss state from that event instead of the
+  hardcoded sandbox build it used through Sprint 6's first half.
+
 ### Build archetypes we commit to supporting
 1. **Dex duelist** — fast light chains, extended i-frames, low HP margin.
 2. **Vit bruiser** — heavy weapon, tanks hits via poise, out-trades.

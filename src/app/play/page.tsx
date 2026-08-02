@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { GameCanvas } from '@/components/GameCanvas';
+import { PlayShell } from '@/components/PlayShell';
 import { SignOutButton } from '@/components/AuthButton';
 
 export default async function PlayPage() {
@@ -16,7 +16,7 @@ export default async function PlayPage() {
       <div className="absolute top-3 right-3 z-10">
         <SignOutButton />
       </div>
-      <GameCanvas />
+      <PlayShell />
     </main>
   );
 }

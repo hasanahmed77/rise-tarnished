@@ -8,8 +8,6 @@
 // arrive in #7 — this module exposes the hooks they build on.
 
 import {
-  BASE_MAX_HP,
-  BASE_MAX_STAMINA,
   BASE_POISE,
   BLOCK_DAMAGE_MULT,
   BLOCK_STAMINA_PER_HIT,
@@ -30,6 +28,8 @@ import {
   STAMINA_REGEN_PER_TICK,
   dodgeIframes,
   maxFp,
+  maxHp,
+  maxStamina,
   sorceryDamage,
   type ActionId,
 } from './frameData';
@@ -132,10 +132,10 @@ export function createPlayerState(x = 0, build?: PlayerBuild): PlayerCombatState
   return {
     x,
     facing: 1,
-    hp: BASE_MAX_HP,
-    stamina: BASE_MAX_STAMINA,
-    // Start with a full pool for whatever build is fighting; defaults to the
-    // base pool when no build is supplied (callers that don't cast).
+    // Start with full pools for whatever build is fighting; defaults to the
+    // base pools when no build is supplied (callers that don't need one).
+    hp: maxHp(build?.vitality ?? 0),
+    stamina: maxStamina(build?.vitality ?? 0),
     fp: build ? maxFp(build.intelligence) : maxFp(0),
     action: null,
     poiseDamage: 0,
@@ -372,7 +372,10 @@ export function step(prev: PlayerCombatState, input: CombatInput, ctx: StepConte
   state.poiseDamage = tickPoiseDecay(state.poiseDamage);
   state.ticksSinceStaminaSpend += 1;
   if (state.ticksSinceStaminaSpend >= STAMINA_REGEN_DELAY_TICKS && !isGuardEngaged(state)) {
-    state.stamina = Math.min(BASE_MAX_STAMINA, state.stamina + STAMINA_REGEN_PER_TICK);
+    state.stamina = Math.min(
+      maxStamina(ctx.build.vitality),
+      state.stamina + STAMINA_REGEN_PER_TICK,
+    );
   }
   state.ticksSinceFpSpend += 1;
   if (state.ticksSinceFpSpend >= FP_REGEN_DELAY_TICKS) {
