@@ -84,8 +84,15 @@ sequencing between attempts — so a memorized combo pattern stops working.
 
 - ~~Input~~ **Resolved:** keyboard+mouse for MVP; gamepad post-MVP
   (`design/COMBAT_SYSTEM.md` §7).
-- Art: placeholder primitives vs. sourced sprites for the slice? (Affects feel
-  testing — combat feel is hard to judge with boxes.)
+- ~~Art: placeholder primitives vs. sourced sprites~~ **Resolved (#42):**
+  neither — the art is *generated* by a checked-in script
+  (`scripts/generate-sprites.mjs`) that draws pixel-art sprite sheets and
+  parallax backdrop layers into `public/sprites/`. Chosen over a licensed
+  pack because it keeps the art original (no attribution/licence surface on
+  a coursework project), regenerable, and reviewable as a diff. The
+  rendering layer is agnostic: swapping in a bought pack later means
+  replacing the PNGs and keeping the frame indices
+  (`src/game/render/spriteFrames.ts`), not rewriting the scene.
 - ~~Behavior signals~~ **Resolved:** seven signals specified in
   `design/BOSS_AI.md` §5.
 - Stat naming: proposal's "health" stat overlaps with HP; consider
