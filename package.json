@@ -16,7 +16,8 @@
     "test:rls": "vitest run --config vitest.rls.config.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepare": "husky"
+    "prepare": "husky",
+    "assets": "node scripts/generate-sprites.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.3",

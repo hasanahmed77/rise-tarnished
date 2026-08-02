@@ -63,6 +63,21 @@ npm run dev        # http://localhost:3000
 | `npm run typecheck` | `tsc --noEmit` (strict) |
 | `npm run format` | Prettier write across the repo |
 | `npm run format:check` | Prettier check (no writes) |
+| `npm run assets` | Regenerate the sprite/background PNGs (below) |
+
+### Art assets
+
+All sprites and backdrops are **generated, not sourced** — `npm run assets`
+runs `scripts/generate-sprites.mjs`, which draws pixel-art sheets and the
+Stormveil parallax layers into `public/sprites/`. The output is committed, so
+a fresh clone renders without running it; regenerate only after editing the
+generator.
+
+The generator writes frames in a fixed order that
+`src/game/render/spriteFrames.ts` indexes into, and `spriteFrames.test.ts`
+asserts the committed PNGs actually contain every frame the scene asks for —
+so a regenerate that changes the frame count fails CI rather than silently
+animating the wrong pose.
 
 ### Local Supabase
 
