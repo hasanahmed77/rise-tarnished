@@ -60,7 +60,15 @@ const BASE_SCORE: Record<ScoredTactic, number> = {
   PRESSURE: 0.7,
   BAIT: 0.6,
   REPOSITION: 0.5,
-  RECOVER: 0.4,
+  // Raised from 0.4: even with its behaviour terms firing, RECOVER couldn't
+  // outscore NEUTRAL, so the boss had no reachable "back off and breathe"
+  // state. It needs to be able to win a re-score, not merely exist — but
+  // only just. The softmax temperature is low enough (0.35) that a tactic
+  // scoring clearly above the field takes ~75% of the fight's time, so this
+  // is deliberately set to land RECOVER *level with* NEUTRAL at zero player
+  // aggression, not above it: the goal is a boss that lets up, not one that
+  // stops fighting. Measured shares are asserted in tactics.test.ts.
+  RECOVER: 0.5,
 };
 
 /**
@@ -73,7 +81,16 @@ function tacticBehaviorMod(tactic: ScoredTactic, s: BehaviorSignals, ctx: Tactic
   switch (tactic) {
     case 'PRESSURE':
       mod *= 1 + s.turtleIndex * 2; // turtling invites pressure
-      mod *= 1 + (1 - s.aggression) * 0.5; // passivity too
+      // NOTE: deliberately does NOT escalate on low `aggression`. It used to
+      // (`1 + (1 - aggression) * 0.5`) and that closed a feedback loop against
+      // the player: no opening → attack rate falls → aggression falls →
+      // PRESSURE scores higher → boss crowds to range 45 → still no opening.
+      // With the softmax this decisive, PRESSURE then won ~every re-score and
+      // the fight never let up. `turtleIndex` above already covers deliberate
+      // defence, and it reads *blocking* — a chosen action. Low aggression is
+      // ambiguous ("passive by choice" vs "given no room"), so escalating on
+      // it makes the ambiguity self-reinforcing. Same shape as the
+      // rangeCamping loop called out in bossCombat.ts's TACTIC_TARGET_RANGE.
       break;
     case 'BAIT':
       mod *= 1 + s.dodgeReflex * 3; // panic-rollers get baited
@@ -84,6 +101,14 @@ function tacticBehaviorMod(tactic: ScoredTactic, s: BehaviorSignals, ctx: Tactic
       break;
     case 'RECOVER':
       mod *= 1 + ctx.bossPoiseFraction * 1.5 + ctx.bossPostureFraction * 1.5;
+      // The mirror of PRESSURE's removed term, and the reason the fight has a
+      // pulse: when the player's attack rate is low, the boss eases off and
+      // gives them room. Gating relief solely on damage the boss has taken
+      // (the two terms above) meant relief only arrived as a reward for
+      // already winning — exactly backwards when a player is being smothered.
+      // Self-correcting: land hits and aggression climbs, this term decays,
+      // and pressure returns on its own.
+      mod *= 1 + (1 - s.aggression) * 1.0;
       break;
     case 'NEUTRAL':
       mod *= 1 + s.dodgeTiming * 0.5; // good dodgers get a faster reset pace

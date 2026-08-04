@@ -1,6 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_CHAIN_PHASE1, MIN_TELL_FRAMES, validateMoveTable } from './moveSchema';
+import {
+  INTER_SEQUENCE_GAP_TICKS,
+  MAX_CHAIN_PHASE1,
+  MIN_INTER_SEQUENCE_GAP_TICKS,
+  MIN_TELL_FRAMES,
+  validateMoveTable,
+} from './moveSchema';
 import type { MoveDef, MoveTable } from './types';
+
+describe('F2 — the tuned inter-sequence gap respects the invariant floor', () => {
+  it('never drops below the fairness minimum', () => {
+    // The gap the boss actually leaves is tuned for feel and lives separately
+    // from F2's floor precisely so the floor can't be edited to chase feel.
+    // This is the check that keeps them honest.
+    expect(INTER_SEQUENCE_GAP_TICKS).toBeGreaterThanOrEqual(MIN_INTER_SEQUENCE_GAP_TICKS);
+  });
+});
 
 function baseMove(overrides: Partial<MoveDef> = {}): MoveDef {
   return {

@@ -9,8 +9,20 @@ import type { MoveDef, MoveTable } from './types';
 
 /** F1 — nothing is unreactable. */
 export const MIN_TELL_FRAMES = 18;
-/** F2 — breathing room between combo sequences is authored, not emergent. */
+/** F2 — breathing room between combo sequences is authored, not emergent.
+ * This is the *invariant floor*, not the tuned value: it is what CI enforces,
+ * and it must not be edited to chase feel. Tune INTER_SEQUENCE_GAP_TICKS
+ * below instead. */
 export const MIN_INTER_SEQUENCE_GAP_TICKS = 30;
+
+/** The gap the boss actually leaves between sequences. Kept separate from the
+ * F2 floor above so tuning and the invariant can't be confused for one
+ * another — a test asserts this never drops below it.
+ *
+ * 30f (0.5s) satisfied F2 on paper but wasn't a usable window in practice:
+ * closing the distance and landing an 8f-startup light needs more than half a
+ * second, so "breathing room" existed in the log and not in the hands. */
+export const INTER_SEQUENCE_GAP_TICKS = 45;
 /** F3 — phase-1 chain cap. */
 export const MAX_CHAIN_PHASE1 = 5;
 

@@ -110,3 +110,77 @@ describe('L2 tactic machine', () => {
     }
   });
 });
+
+/** Fraction of ticks spent in each tactic over a long run with fixed signals.
+ * Time-in-tactic, not change-count: what a player feels is how long the boss
+ * spends crowding them, not how often intent flips. */
+function tacticShare(
+  signals: BehaviorSignals,
+  ctx: TacticContext = CTX,
+  seed = 5,
+  ticks = 60000,
+): Record<string, number> {
+  let s = createTacticState(createRng(seed));
+  const held: Record<string, number> = {};
+  for (let i = 0; i < ticks; i++) {
+    s = tickTactic(s, () => signals, ctx).state;
+    held[s.current] = (held[s.current] ?? 0) + 1;
+  }
+  for (const k of Object.keys(held)) held[k] /= ticks;
+  return held;
+}
+
+// The player-facing bug these guard: Margit attacked without pause and never
+// left a window to strike back. Root cause was a feedback loop — PRESSURE
+// scored higher the *less* the player attacked, so being suppressed made the
+// boss press harder, and RECOVER (the only tactic that disengages) was gated
+// on damage the boss had taken, which stays zero while the player is losing.
+describe('pressure/relief rhythm', () => {
+  /** A player being smothered: barely landing attacks, not deliberately
+   * turtling, boss untouched. The exact state the loop used to trap. */
+  const SMOTHERED: BehaviorSignals = {
+    ...NEUTRAL_SIGNALS,
+    aggression: 0,
+    turtleIndex: 0.1,
+  };
+
+  it('gives a smothered player relief instead of escalating on them', () => {
+    const share = tacticShare(SMOTHERED);
+    // RECOVER is the only tactic that stops selecting moves entirely
+    // (bossCombat: it returns after approach()), so it is what a window is
+    // actually made of.
+    //
+    // Asserted as a BAND, not a floor. The first attempt at this fix scored
+    // RECOVER well above the field and — because the softmax temperature is
+    // low — handed it 75% of the fight, replacing "never lets up" with "barely
+    // fights". Both failure modes have to be caught, so the ceiling matters as
+    // much as the floor.
+    expect(share.RECOVER ?? 0).toBeGreaterThan(0.15);
+    expect(share.RECOVER ?? 0).toBeLessThan(0.45);
+    expect(share.PRESSURE ?? 0).toBeLessThan(share.RECOVER ?? 0);
+  });
+
+  it('does not let PRESSURE dominate a player who simply is not attacking', () => {
+    // Regression guard on the removed `1 + (1 - aggression)` term: a passive
+    // player must not, by itself, drive the boss into its most aggressive
+    // stance. Compare against an identical player who IS attacking.
+    const attacking = tacticShare({ ...SMOTHERED, aggression: 0.9 });
+    const passive = tacticShare(SMOTHERED);
+    expect(passive.PRESSURE ?? 0).toBeLessThanOrEqual((attacking.PRESSURE ?? 0) + 0.05);
+  });
+
+  it('still answers deliberate turtling with pressure', () => {
+    // The fix must not cost the anti-turtle behaviour: blocking is a chosen
+    // action and should still invite crowding, unlike mere passivity.
+    const turtling = tacticShare({ ...NEUTRAL_SIGNALS, turtleIndex: 0.95, aggression: 0.2 });
+    expect(turtling.PRESSURE ?? 0).toBeGreaterThan(turtling.RECOVER ?? 0);
+  });
+
+  it('returns to pressure once the player is landing hits freely', () => {
+    // Relief is self-correcting, not a permanent softening: an aggressive
+    // player should see markedly less RECOVER than a suppressed one.
+    const suppressed = tacticShare(SMOTHERED);
+    const thriving = tacticShare({ ...NEUTRAL_SIGNALS, aggression: 1, turtleIndex: 0.1 });
+    expect(thriving.RECOVER ?? 0).toBeLessThan(suppressed.RECOVER ?? 0);
+  });
+});
