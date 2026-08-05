@@ -15,7 +15,7 @@ import {
   type PostureState,
 } from '../combat/posture';
 import { applyUndefendedHit, tickPoiseDecay } from '../combat/poise';
-import { MIN_INTER_SEQUENCE_GAP_TICKS } from './moveSchema';
+import { INTER_SEQUENCE_GAP_TICKS } from './moveSchema';
 import { clamp } from '../util';
 import {
   createSelectionState,
@@ -270,7 +270,7 @@ export function step(
         state: {
           ...state.selection,
           chainDepth: 0,
-          gapTicksRemaining: MIN_INTER_SEQUENCE_GAP_TICKS,
+          gapTicksRemaining: INTER_SEQUENCE_GAP_TICKS,
         },
       };
   state.selection = branch.state;
@@ -359,7 +359,7 @@ export function resolveBossHit(
     state.selection = {
       ...state.selection,
       chainDepth: 0,
-      gapTicksRemaining: MIN_INTER_SEQUENCE_GAP_TICKS,
+      gapTicksRemaining: INTER_SEQUENCE_GAP_TICKS,
     };
     events.push({ type: 'stagger:start' });
   }

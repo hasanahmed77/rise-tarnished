@@ -142,6 +142,37 @@ open art question is updated to record this.
   invisible when reviewing art in isolation — they only show up when the
   sprite is composited against a player standing at the move's true range.**
 
+- **08-04:** Third piece of playtest feedback, and the first that wasn't about
+  art: *"Margit is attacking constantly and not giving me a single chance."*
+  Traced it rather than guessing, and the first hypothesis (that #9's tactic
+  layer was never wired up) was **wrong** — L2 is fully implemented, and
+  `RECOVER` already does exactly the right thing, suppressing move selection
+  entirely and backing off to range 125. The real cause was a **feedback loop
+  against the player**: `PRESSURE` scored higher the *less* the player
+  attacked (`1 + (1 - aggression) * 0.5`), so being suppressed made the boss
+  press harder — no opening → attack rate falls → PRESSURE rises → crowds to
+  range 45 → still no opening. With the softmax at 0.35 that locked in at
+  ~99% of re-scores, while `RECOVER` sat gated on damage the *boss* had
+  taken, which stays zero precisely when the player is losing. Relief only
+  arrived as a reward for already winning.
+  <br><br>
+  Notably this was **code diverging from its own spec**: BOSS_AI.md §5's
+  signal table maps `aggression` → RECOVER frequency, and maps `turtleIndex`
+  (which already folds passivity in) → PRESSURE. So PRESSURE reading
+  `aggression` was double-counting passivity *and* starving RECOVER of its
+  documented input. Fix moves the term where the spec always said it went.
+  <br><br>
+  Also split `INTER_SEQUENCE_GAP_TICKS` (45, tuned) from
+  `MIN_INTER_SEQUENCE_GAP_TICKS` (30, F2's floor) so pacing can be tuned
+  without editing an invariant, with a test keeping them honest, and raised
+  `cane_swing_1`'s cooldown 20→45 so the main opener can't cycle back
+  instantly. **Tuned by measurement, not by feel:** the first attempt scored
+  RECOVER too high and handed it **75%** of the fight — trading "never lets
+  up" for "barely fights". Settled at shares of ~30% RECOVER when smothered,
+  ~7% when the player is landing hits freely, and ~90% PRESSURE against a
+  turtler. Those bands are now asserted, ceiling included, so both failure
+  modes fail CI. 161 unit tests.
+
 ## Review (end of sprint)
 _(pending)_
 

@@ -160,6 +160,20 @@ L2/tracker constants introduced by #9 (`behaviorTracker.ts`, `tactics.ts`):
 | `TURTLE_SATURATION_FRACTION` | 0.5 | Blocking/camping half the window saturates turtleIndex & rangeCamping |
 | `MIN_RATE_WINDOW_SECONDS` | 3 s | Rate signals' denominator floor — early-fight actions can't read as saturated rates |
 | `RANGE_DEADZONE` | 12 u | Movement stops within this of the tactic's target range |
+| `INTER_SEQUENCE_GAP_TICKS` | 45 (0.75 s) | The gap the boss actually leaves between sequences. Separate from F2's 30f floor so tuning can't quietly lower the invariant |
+
+### Pressure and relief (tuning note)
+
+`aggression` feeds **RECOVER**, per §5's signal table — not PRESSURE. PRESSURE
+reads `turtleIndex`, which already folds passivity in (§5), so scoring PRESSURE
+on low `aggression` as well double-counted the same player behavior and closed
+a loop against them: no opening → attack rate falls → PRESSURE rises → boss
+crowds harder → still no opening. With the softmax this decisive, PRESSURE then
+won nearly every re-score and the fight never let up. RECOVER's base score is
+deliberately set to land *level with* NEUTRAL at zero aggression rather than
+above it — a tactic that clearly leads the field takes ~75% of a fight's time,
+which trades "never lets up" for "barely fights". Measured tactic shares are
+asserted in `tactics.test.ts`.
 | `PUNISHABLE_OPENING_RANGE` | 90 u | Max distance a committed player action reads as a PUNISH opening |
 
 Movement is tactic-owned (one authority — `TACTIC_TARGET_RANGE` in

@@ -21,7 +21,10 @@ export const margitMoves: MoveTable = {
     poiseDamage: 8,
     postureSelfRisk: 4,
     staminaCost: 0,
-    cooldownTicks: 20,
+    // 20 ticks (0.33s) put the table's main opener back up before the player
+    // had recovered from the last sequence. F8 blocks a 3rd consecutive pick
+    // but not relentless 2× cycling, which is what this actually felt like.
+    cooldownTicks: 45,
     combo: {
       maxChain: 3,
       next: [

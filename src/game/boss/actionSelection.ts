@@ -10,7 +10,7 @@
 // top-level table is considered regardless of `tactics`, matching Sprint 2's
 // documented scope.
 
-import { MIN_INTER_SEQUENCE_GAP_TICKS } from './moveSchema';
+import { INTER_SEQUENCE_GAP_TICKS } from './moveSchema';
 import { weightedPick, type RngState } from './rng';
 import type { MoveTable, PlayerActionTag, Tactic } from './types';
 import { behaviorMod, type WeightRule } from './weighting';
@@ -155,7 +155,7 @@ export function selectComboBranch(
   if (!combo || state.chainDepth >= combo.maxChain) {
     return {
       kind: 'sequence-end',
-      state: { ...state, chainDepth: 0, gapTicksRemaining: MIN_INTER_SEQUENCE_GAP_TICKS },
+      state: { ...state, chainDepth: 0, gapTicksRemaining: INTER_SEQUENCE_GAP_TICKS },
     };
   }
 
@@ -182,7 +182,7 @@ export function selectComboBranch(
   if (picked === null) {
     return {
       kind: 'sequence-end',
-      state: { ...withRng, chainDepth: 0, gapTicksRemaining: MIN_INTER_SEQUENCE_GAP_TICKS },
+      state: { ...withRng, chainDepth: 0, gapTicksRemaining: INTER_SEQUENCE_GAP_TICKS },
     };
   }
   return {
