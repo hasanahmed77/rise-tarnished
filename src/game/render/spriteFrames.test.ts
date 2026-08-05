@@ -67,14 +67,54 @@ describe('margit sheet', () => {
     expect(Math.max(...used)).toBeLessThan(total);
   });
 
-  it('distinguishes the phases a player reads to time a punish', () => {
-    expect(new Set([MF.startup, MF.active, MF.recovery]).size).toBe(3);
-    expect(MF.collapsed).not.toBe(MF.staggered);
-  });
-
   it('is drawn larger than the player — Margit has to loom', () => {
     expect(BOSS_SPRITE_W).toBeGreaterThan(PLAYER_SPRITE_W);
     expect(BOSS_SPRITE_H).toBeGreaterThan(PLAYER_SPRITE_H);
+  });
+
+  describe('per-move tells (#42 part 2)', () => {
+    it('every move in the table has its own art — none silently fall back', () => {
+      // The bug this exists to catch: a move added to margitMoves.ts without
+      // a matching MF.moves entry would render CombatScene's cane_swing_1
+      // fallback instead — a move-selection bug that looks, at a glance,
+      // exactly like a rendering success.
+      for (const id of Object.keys(margitMoves)) {
+        expect(
+          (MF.moves as Record<string, unknown>)[id],
+          `${id} has no entry in MF.moves — it will render as cane_swing_1`,
+        ).toBeDefined();
+      }
+    });
+
+    it('every move a player actually sees is visually distinct from every other', () => {
+      // The whole point: a 40-frame grab (F7's anti-turtle reach) must not
+      // read the same as a fast cane swing. Checked pairwise across BOTH
+      // tell and active — two moves sharing a tell but not an active (or
+      // vice versa) would still let a player misread what's coming.
+      const entries = Object.entries(MF.moves);
+      for (let i = 0; i < entries.length; i++) {
+        for (let j = i + 1; j < entries.length; j++) {
+          const [idA, framesA] = entries[i];
+          const [idB, framesB] = entries[j];
+          expect(
+            framesA.tell,
+            `${idA} and ${idB} share a tell frame — indistinguishable windups`,
+          ).not.toBe(framesB.tell);
+          expect(
+            framesA.active,
+            `${idA} and ${idB} share an active frame — indistinguishable strikes`,
+          ).not.toBe(framesB.active);
+        }
+      }
+    });
+
+    it("each move's tell and active are different poses", () => {
+      // A move whose active frame equals its tell wouldn't visibly swing at
+      // all — the windup and the hit would look identical.
+      for (const [id, frames] of Object.entries(MF.moves)) {
+        expect(frames.tell, `${id}'s tell and active are the same frame`).not.toBe(frames.active);
+      }
+    });
   });
 });
 

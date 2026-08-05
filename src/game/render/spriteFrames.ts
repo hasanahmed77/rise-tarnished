@@ -44,15 +44,35 @@ export const PF = {
   death: 19,
 } as const;
 
-/** Margit frames, indexed into margit.png. */
+/** Margit frames, indexed into margit.png.
+ *
+ * `moves` gives every move its own tell + active pose (#42 part 2) — before
+ * this, all eight moves shared one generic windup/swing, so a 40-frame grab
+ * telegraphed identically to a fast cane swing and the boss's combos read as
+ * one repeated animation regardless of which move the L3 AI actually picked.
+ * Recovery stays one shared pose deliberately: it reads similarly across
+ * moves (the punish window is about timing, not shape) and differentiating
+ * it wasn't where the illegibility complaint was.
+ *
+ * Keyed by MoveDef.id (margitMoves.ts) — spriteFrames.test.ts asserts every
+ * key in that table has an entry here, so a new move without art fails CI
+ * instead of silently falling back mid-fight. */
 export const MF = {
   idle: [0, 1],
-  startup: 2,
-  active: 3,
-  recovery: 4,
-  staggered: 5,
-  collapsed: 6,
-  death: 7,
+  recovery: 2,
+  staggered: 3,
+  collapsed: 4,
+  death: 5,
+  moves: {
+    'margit.cane_swing_1': { tell: 6, active: 7 },
+    'margit.cane_swing_2': { tell: 8, active: 9 },
+    'margit.delayed_overhead': { tell: 10, active: 11 },
+    'margit.holy_thrust': { tell: 12, active: 13 },
+    'margit.flying_thrust': { tell: 14, active: 15 },
+    'margit.sweep_kick': { tell: 16, active: 17 },
+    'margit.reaper_flurry': { tell: 18, active: 19 },
+    'margit.grab': { tell: 20, active: 21 },
+  },
 } as const;
 
 /** Every frame index a table references — the test uses this to prove the
