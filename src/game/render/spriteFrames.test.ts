@@ -56,7 +56,22 @@ describe('player sheet', () => {
     expect(new Set([PF.light.startup, PF.light.active, PF.light.recovery]).size).toBe(3);
     expect(new Set([PF.heavy.startup, PF.heavy.active, PF.heavy.recovery]).size).toBe(3);
     expect(PF.light.active).not.toBe(PF.heavy.active);
-    expect(PF.stagger).not.toBe(PF.death);
+  });
+
+  describe('death sequence (#42 part 2b)', () => {
+    it('has two distinct beats — a reel before the final prone pose', () => {
+      // A death that jumps straight to the same static frame every time
+      // would be the instant-snap this sequence exists to replace.
+      expect(PF.death.reel).not.toBe(PF.death.prone);
+    });
+
+    it('deliberately reuses the stagger pose for the reel beat', () => {
+      // Documented choice in spriteFrames.ts: no new art needed, since an
+      // off-balance stagger frame already reads as "just been hit hard." If
+      // this ever needs to change, change it in one place, not silently
+      // drift the two apart.
+      expect(PF.death.reel).toBe(PF.stagger);
+    });
   });
 });
 
@@ -70,6 +85,16 @@ describe('margit sheet', () => {
   it('is drawn larger than the player — Margit has to loom', () => {
     expect(BOSS_SPRITE_W).toBeGreaterThan(PLAYER_SPRITE_W);
     expect(BOSS_SPRITE_H).toBeGreaterThan(PLAYER_SPRITE_H);
+  });
+
+  describe('death sequence (#42 part 2b)', () => {
+    it('has two distinct beats — a reel before the final prone pose', () => {
+      expect(MF.death.reel).not.toBe(MF.death.prone);
+    });
+
+    it('deliberately reuses the collapsed (posture-break) pose for the reel beat', () => {
+      expect(MF.death.reel).toBe(MF.collapsed);
+    });
   });
 
   describe('per-move tells (#42 part 2)', () => {

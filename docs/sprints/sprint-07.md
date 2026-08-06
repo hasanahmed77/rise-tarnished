@@ -25,10 +25,9 @@ and every animation maps 1:1 onto a state the sim exposes.
 - [x] **#42 (part 2a)** Per-move distinct tells — size M, p1
       *Every move in Margit's table gets its own tell + active pose instead
       of sharing one generic windup/swing.*
-- [ ] **#42 (part 2b)** Remaining juice — hitstop, death sequences. *Still
-      deferred: distinct tells were the readability-critical half of part 2
-      (a shared tell meant the AI's move-selection variety was invisible to
-      the player); hitstop/death polish doesn't block that.*
+- [x] **#42 (part 2b)** Remaining juice — hitstop, death sequences — size S, p2
+      *A real-time freeze-frame on impact, weighted by hit severity; a
+      two-beat death sequence (reel, then prone) instead of an instant snap.*
 
 ## The art-sourcing decision, revisited
 
@@ -206,6 +205,37 @@ open art question is updated to record this.
   and no move's tell equals its own active. 163 unit tests. Recovery stays
   one shared pose deliberately — it reads similarly across moves and wasn't
   where the illegibility complaint was.
+
+- **08-06:** #42 part 2b — the remaining combat juice: hitstop and death
+  sequences. Hitstop is a hard real-time freeze-frame on impact
+  (`CombatScene.triggerHitstop`), weighted the same way screenshake already
+  is: a critical holds longest (90ms), then a heavy landing or a clean hit
+  taken (60-80ms), then a light or a blocked hit (30-40ms). Implemented as a
+  wall-clock pause at the top of `update()` — the accumulator doesn't grow
+  and no ticks are consumed while frozen, so every fairness invariant that
+  counts ticks (F1-F8) is untouched by construction: hitstop delays real time
+  equally for both combatants without changing what a tick means, and a
+  keypress during the freeze isn't lost (JustDown simply isn't polled on
+  those frames, so Phaser's own edge-detection reports it truthfully once
+  the freeze lifts).
+  <br><br>
+  Death goes from an instant snap to a two-beat sequence (reel, then the
+  final prone pose) — but costs **zero new art**: `PF.death.reel` reuses the
+  existing stagger frame, `MF.death.reel` reuses the existing posture-break
+  collapsed frame, since both already read as "just been hit hard" or
+  "barely standing." The sim itself stops advancing the instant hp hits 0
+  (`finished`), so there are no ticks left to time an animation with —
+  the reel→prone hold is timed off real elapsed ms tracked separately
+  (`deathAnimMs`), the same real-time-not-ticks pattern hitstop uses.
+  <br><br>
+  167 unit tests (up from 163): the death sequence's two beats are asserted
+  distinct, and the specific frame reuse (reel = stagger / collapsed) is
+  pinned so a future edit can't silently drift the two apart. Both features
+  are scene-only (CombatScene, the imperative shell) — no pure sim module
+  touched, consistent with ADR-0001.
+  <br><br>
+  **#42 is now fully closed**: real sprites and arena (part 1), per-move
+  tells (part 2a), and the remaining juice (part 2b).
 
 ## Review (end of sprint)
 _(pending)_

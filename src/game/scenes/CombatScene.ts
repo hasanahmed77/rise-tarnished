@@ -96,6 +96,12 @@ const RUN_FRAME_TICKS = 8;
  * give the layers depth without the scene appearing to slide. */
 const PARALLAX = { sky: 0.006, far: 0.018, mid: 0.05 } as const;
 
+/** Real-time ms the death sequence's first beat (PF/MF.death.reel) holds
+ * before settling on the final prone pose (#42 part 2b). Real time, not
+ * ticks: the sim stops advancing the instant hp hits 0, so there are no
+ * ticks left to time this off of — see update()'s deathAnimMs tracking. */
+const DEATH_REEL_MS = 450;
+
 export class CombatScene extends Phaser.Scene {
   private sim!: PlayerCombatState;
   private ctx!: StepContext;
@@ -104,6 +110,12 @@ export class CombatScene extends Phaser.Scene {
   private accumulator = 0;
   private bossHitFlash = 0;
   private playerHitFlash = 0;
+  /** Remaining real-time ms of a hard freeze-frame on impact (#42 part 2b).
+   * See triggerHitstop() and its use at the top of update(). */
+  private hitstopMs = 0;
+  /** Real-time ms since `finished` went true — times the death sequence's
+   * reel → prone hold, since the sim itself stops advancing at that point. */
+  private deathAnimMs = 0;
 
   private bridge?: GameBridge;
   private attemptId!: string;
@@ -394,6 +406,27 @@ export class CombatScene extends Phaser.Scene {
     // simulate or render yet (see startFight()).
     if (!this.ready) return;
 
+    // Hitstop (#42 part 2b): a hard freeze on impact, weighted by how much
+    // the hit mattered (see triggerHitstop's call sites). Real-time, not
+    // tick-based — the accumulator doesn't grow and no ticks are consumed
+    // while frozen, so every fairness invariant (F1-F8) that counts ticks is
+    // untouched: this delays wall-clock time equally for both combatants,
+    // it never changes what a tick means. Input during the freeze isn't
+    // lost either — sampleInput (and so JustDown) simply isn't called on
+    // these frames, so Phaser's own edge-detection still reports it truthfully
+    // on the first frame after the freeze ends.
+    if (this.hitstopMs > 0) {
+      this.hitstopMs = Math.max(0, this.hitstopMs - delta);
+      this.render();
+      return;
+    }
+
+    // The sim stops the instant a terminal HP state is reported (`finished`,
+    // below), which also stops it from being able to drive an animation —
+    // so the death sequence's timing (reel → prone) is tracked here instead,
+    // off real elapsed time rather than ticks.
+    if (this.finished) this.deathAnimMs += delta;
+
     // Cap the accumulator so a long stall (e.g. tab backgrounded) can't trigger
     // a runaway catch-up of hundreds of ticks in one frame.
     this.accumulator = Math.min(this.accumulator + delta, TICK_MS * 5);
@@ -514,12 +547,21 @@ export class CombatScene extends Phaser.Scene {
     this.bossHitFlash = result.wasCritical ? 16 : 8;
     // Weight: a critical shakes hardest, a heavy more than a light.
     this.shake(result.wasCritical ? 0.012 : attackId === 'heavy' ? 0.006 : 0.003);
+    this.triggerHitstop(result.wasCritical ? 90 : attackId === 'heavy' ? 60 : 40);
   }
 
   /** Camera shake, budgeted per COMBAT_SYSTEM.md §8 (screen shake is
    * explicitly a budgeted effect with an accessibility toggle planned). */
   private shake(intensity: number, duration = 110): void {
     this.cameras.main.shake(duration, intensity, true);
+  }
+
+  /** Freeze-frame on impact (#42 part 2b), applied at the top of update().
+   * `Math.max`, not addition — two hits landing the same frame (e.g. a
+   * critical that also breaks posture) hold for the bigger one, not their
+   * sum; hitstop is meant to sell a moment, not compound into a stall. */
+  private triggerHitstop(ms: number): void {
+    this.hitstopMs = Math.max(this.hitstopMs, ms);
   }
 
   private resolveProjectilesOnBoss(): void {
@@ -540,6 +582,7 @@ export class CombatScene extends Phaser.Scene {
       this.boss = result.state;
       this.bossHitFlash = result.wasCritical ? 16 : 8;
       this.shake(result.wasCritical ? 0.012 : 0.005);
+      this.triggerHitstop(result.wasCritical ? 90 : 50);
       hitIds.add(p.id);
     }
     // Consume connecting bolts so a single cast can't multi-hit across ticks.
@@ -580,12 +623,14 @@ export class CombatScene extends Phaser.Scene {
       this.bossCtx.lastPlayerAction = 'block';
       this.playerHitFlash = 8;
       this.shake(0.004);
+      this.triggerHitstop(30);
     } else {
       this.bossCtx.lastPlayerAction = null;
       this.playerHitFlash = 8;
       // Taking a clean hit shakes hardest — it's the one the player most
       // needs to feel, and the only one they're punished for.
       this.shake(0.014, 150);
+      this.triggerHitstop(80);
     }
   }
 
@@ -656,7 +701,7 @@ export class CombatScene extends Phaser.Scene {
    * fight is actually doing (ADR-0001: the scene reads, it never decides). */
   private playerFrame(): number {
     const s = this.sim;
-    if (s.hp <= 0) return PF.death;
+    if (s.hp <= 0) return this.deathAnimMs < DEATH_REEL_MS ? PF.death.reel : PF.death.prone;
     if (isStaggered(s)) return PF.stagger;
     const a = s.action;
     if (a) {
@@ -738,7 +783,7 @@ export class CombatScene extends Phaser.Scene {
 
   private bossFrame(collapsed: boolean): number {
     const b = this.boss;
-    if (b.hp <= 0) return MF.death;
+    if (b.hp <= 0) return this.deathAnimMs < DEATH_REEL_MS ? MF.death.reel : MF.death.prone;
     if (collapsed) return MF.collapsed;
     if (isBossStaggered(b)) return MF.staggered;
     if (b.action) {
