@@ -742,11 +742,15 @@ export class CombatScene extends Phaser.Scene {
     if (collapsed) return MF.collapsed;
     if (isBossStaggered(b)) return MF.staggered;
     if (b.action) {
-      return b.action.phase === 'startup'
-        ? MF.startup
-        : b.action.phase === 'active'
-          ? MF.active
-          : MF.recovery;
+      if (b.action.phase === 'recovery') return MF.recovery;
+      // Per-move tell/active (#42 part 2) — every move gets its own
+      // silhouette instead of one shared windup/swing. Falls back to
+      // cane_swing_1's frames only if a move is ever added without art;
+      // spriteFrames.test.ts asserts that never happens in practice.
+      const frames =
+        (MF.moves as Record<string, { tell: number; active: number }>)[b.action.moveId] ??
+        MF.moves['margit.cane_swing_1'];
+      return b.action.phase === 'startup' ? frames.tell : frames.active;
     }
     return MF.idle[Math.floor(this.tickCount / IDLE_FRAME_TICKS) % MF.idle.length];
   }

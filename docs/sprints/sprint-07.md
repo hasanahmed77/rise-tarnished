@@ -22,10 +22,13 @@ and every animation maps 1:1 onto a state the sim exposes.
       *Generated pixel-art sheets for the player and Margit, parallax
       backdrop, slash VFX, screenshake; frames selected purely from existing
       sim state.*
-- [ ] **#42 (part 2)** Boss combo animation coverage + remaining juice —
-      hitstop, per-move distinct tells, death sequences. *Deferred to a
-      follow-up ticket: part 1 gives every move the same tell/active/recovery
-      poses, which is honest but not yet expressive per-move.*
+- [x] **#42 (part 2a)** Per-move distinct tells — size M, p1
+      *Every move in Margit's table gets its own tell + active pose instead
+      of sharing one generic windup/swing.*
+- [ ] **#42 (part 2b)** Remaining juice — hitstop, death sequences. *Still
+      deferred: distinct tells were the readability-critical half of part 2
+      (a shared tell meant the AI's move-selection variety was invisible to
+      the player); hitstop/death polish doesn't block that.*
 
 ## The art-sourcing decision, revisited
 
@@ -172,6 +175,37 @@ open art question is updated to record this.
   ~7% when the player is landing hits freely, and ~90% PRESSURE against a
   turtler. Those bands are now asserted, ceiling included, so both failure
   modes fail CI. 161 unit tests.
+
+- **08-05:** #42 part 2a — every move in Margit's table now has its own tell
+  and active pose. Before this, all eight moves (spanning F7's longest tell
+  in the table at 40f down to a 18f combo continuation) shared one generic
+  windup and one generic swing, so the L3 AI's actual move variety was
+  invisible: a grab telegraphed identically to a fast cane swing. Distinct
+  poses per move, keyed by `MoveDef.id`: `delayed_overhead` haul both arms
+  straight overhead (two-handed, unmistakably not a swing); `holy_thrust`
+  charges an arcane glow at the cane tip before a level thrust; `flying_thrust`
+  coils low then leaps, body committed rather than just the arm; `sweep_kick`
+  keeps the cane trailing low since the leg is the weapon; `reaper_flurry`
+  widens the stance and flares the cape for a wide arc; `grab` — the longest
+  tell in the table — spreads both arms wide open with the cane parked at her
+  side, since the claws are the threat, not the weapon.
+  <br><br>
+  Two real problems only showed up once frames were rendered and inspected,
+  not while writing the pose math: `grab`'s "reach" arms barely cleared the
+  shoulder blob (unreadable as reaching), and its cane floated disconnected
+  in empty space since the reaching arms don't touch it. Both fixed by
+  actually looking at upscaled renders rather than trusting the coordinates —
+  the same lesson as the two strike-reach bugs earlier this sprint, applied
+  one level up: correctness isn't just hitbox-to-VFX agreement, it's whether
+  a pose reads as intended at all, and that only shows up in the pixels.
+  <br><br>
+  Guarded by three new tests: every `margitMoves` id has a matching art
+  entry (a move added without art would otherwise silently render as
+  `cane_swing_1` — a move-selection bug disguised as a rendering success),
+  every move's tell and active are pairwise distinct from every other move's,
+  and no move's tell equals its own active. 163 unit tests. Recovery stays
+  one shared pose deliberately — it reads similarly across moves and wasn't
+  where the illegibility complaint was.
 
 ## Review (end of sprint)
 _(pending)_

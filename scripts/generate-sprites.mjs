@@ -317,6 +317,8 @@ function margitFrame({
   staff = 'rest',
   collapsed = false,
   prone = false,
+  glow = false,
+  capeFlare = false,
 }) {
   const c = new Canvas(MARGIT_W, MARGIT_H);
   // Body sits at the canvas centre so the sprite's 0.5 origin lands on the
@@ -339,13 +341,16 @@ function margitFrame({
   const top = (collapsed ? 15 : 9) + bob;
   const hipY = collapsed ? 34 : 31;
 
-  // Cape — wide, behind everything.
+  // Cape — wide, behind everything. capeFlare widens it for the flurry
+  // finisher, whose whole silhouette is meant to read as bigger/wilder than
+  // anything else in the table.
+  const flareW = capeFlare ? 5 : 0;
   c.poly(
     [
       [cx - 7 + lean, top + 6],
       [cx + 7 + lean, top + 6],
-      [cx + 12, 44],
-      [cx - 12, 44],
+      [cx + 12 + flareW, 44],
+      [cx - 12 - flareW, 44],
     ],
     C.omenCapeDark,
   );
@@ -353,8 +358,8 @@ function margitFrame({
     [
       [cx - 5 + lean, top + 7],
       [cx + 3 + lean, top + 7],
-      [cx + 7, 43],
-      [cx - 9, 43],
+      [cx + 7 + flareW, 43],
+      [cx - 9 - flareW, 43],
     ],
     C.omenCape,
   );
@@ -368,17 +373,38 @@ function margitFrame({
     C.omenCapeLit,
   );
 
-  // Legs.
+  // Legs. Each pose reads as a distinct silhouette from the ground up, since
+  // that's visible before the cane/arms resolve at this scale — tellFrames
+  // exist to be read at a glance (COMBAT_SYSTEM.md §1), not studied.
   if (collapsed) {
     c.rect(cx - 6, hipY, 4, 10, C.omenSkinDark);
     c.rect(cx + 2, hipY, 4, 10, C.omenSkinDark);
     c.rect(cx - 8, 43, 6, 2, C.omenSkinDark);
     c.rect(cx + 2, 43, 6, 2, C.omenSkinDark);
-  } else if (pose === 'lunge') {
-    c.line(cx - 1, hipY, cx - 8, 44, C.omenSkinDark, 3);
-    c.line(cx + 2, hipY, cx + 8, 44, C.omenSkinDark, 3);
-    c.rect(cx - 11, 43, 5, 2, C.omenSkinDark);
-    c.rect(cx + 7, 43, 5, 2, C.omenSkinDark);
+  } else if (pose === 'lunge' || pose === 'leap') {
+    const reach = pose === 'leap' ? 12 : 8; // the leap overshoots the swing lunge
+    c.line(cx - 1, hipY, cx - reach, 44, C.omenSkinDark, 3);
+    c.line(cx + 2, hipY, cx + reach, 44, C.omenSkinDark, 3);
+    c.rect(cx - reach - 3, 43, 5, 2, C.omenSkinDark);
+    c.rect(cx + reach - 1, 43, 5, 2, C.omenSkinDark);
+  } else if (pose === 'coil') {
+    // Crouched low and coiled before the leap — bent knees, weight sunk.
+    c.line(cx - 2, hipY - 3, cx - 5, 41, C.omenSkinDark, 3);
+    c.line(cx + 3, hipY - 3, cx + 6, 41, C.omenSkinDark, 3);
+    c.rect(cx - 7, 40, 5, 3, C.omenSkinDark);
+    c.rect(cx + 4, 40, 5, 3, C.omenSkinDark);
+  } else if (pose === 'kickReady') {
+    // Weight settled back onto the trailing leg; the kicking leg lifts.
+    c.rect(cx - 5, hipY, 4, 44 - hipY, C.omenSkinDark);
+    c.line(cx + 3, hipY, cx + 8, hipY + 8, C.omenSkinDark, 3);
+    c.rect(cx - 7, 43, 5, 2, C.omenSkinDark);
+    c.rect(cx + 6, hipY + 6, 4, 3, C.omenSkinDark);
+  } else if (pose === 'kickOut') {
+    // The sweep itself: one leg driven low and wide across the ground.
+    c.rect(cx - 5, hipY, 4, 44 - hipY, C.omenSkinDark);
+    c.line(cx + 3, hipY, cx + 15, hipY + 10, C.omenSkinDark, 3);
+    c.rect(cx - 7, 43, 5, 2, C.omenSkinDark);
+    c.rect(cx + 13, hipY + 8, 5, 3, C.omenSkinDark);
   } else {
     c.rect(cx - 5, hipY, 4, 44 - hipY, C.omenSkinDark);
     c.rect(cx + 1, hipY, 4, 44 - hipY, C.omenSkinDark);
@@ -414,8 +440,9 @@ function margitFrame({
   c.ellipse(cx + 6 + lean, top + 7, 3, 2.5, C.omenSkinDark);
 
   // Arms.
-  // Arms track the cane's grip — a strike with the hand nowhere near the
-  // weapon reads as the cane floating.
+  // Arms track the cane's grip (except grab's 'reach'/'clutch', where the
+  // arms ARE the weapon and the cane goes slack) — a strike with the hand
+  // nowhere near the weapon reads as the cane floating.
   if (pose === 'tell') {
     c.line(cx + 6 + lean, top + 8, cx + 6, top - 4, C.omenSkin, 2);
     c.line(cx - 6 + lean, top + 8, cx - 10, top + 12, C.omenSkin, 2);
@@ -425,6 +452,49 @@ function margitFrame({
   } else if (pose === 'limp') {
     c.line(cx + 6 + lean, top + 8, cx + 9, top + 18, C.omenSkin, 2);
     c.line(cx - 6 + lean, top + 8, cx - 9, top + 18, C.omenSkin, 2);
+  } else if (pose === 'overhead') {
+    // Both arms hauled straight up together — a two-handed grip reads as a
+    // much bigger commitment than cane_swing_1's one-handed pull-back,
+    // matching delayed_overhead's long tell and high damage.
+    c.line(cx + 4 + lean, top + 8, cx + 3, top - 9, C.omenSkin, 2);
+    c.line(cx - 4 + lean, top + 8, cx - 3, top - 9, C.omenSkin, 2);
+  } else if (pose === 'overheadSlam') {
+    c.line(cx + 4 + lean, top + 8, cx + 10, top + 13, C.omenSkin, 2);
+    c.line(cx - 4 + lean, top + 8, cx + 2, top + 13, C.omenSkin, 2);
+  } else if (pose === 'coil') {
+    // Pulled in tight against the chest — coiling, not reaching.
+    c.line(cx + 6 + lean, top + 8, cx + 4, top + 12, C.omenSkin, 2);
+    c.line(cx - 6 + lean, top + 8, cx - 2, top + 13, C.omenSkin, 2);
+  } else if (pose === 'leap') {
+    c.line(cx + 6 + lean, top + 8, cx + 16, top + 12, C.omenSkin, 2);
+    c.line(cx - 6 + lean, top + 8, cx + 6, top + 10, C.omenSkin, 2);
+  } else if (pose === 'kickReady' || pose === 'kickOut') {
+    // Arms trail out for balance — the leg is the weapon here, so nothing
+    // reaches toward the player the way every cane pose does.
+    c.line(cx + 6 + lean, top + 8, cx + 3, top + 14, C.omenSkin, 2);
+    c.line(cx - 6 + lean, top + 8, cx - 10, top + 9, C.omenSkin, 2);
+  } else if (pose === 'reach') {
+    // Both arms spread wide, open toward the player — the grab's tell is
+    // the claws, not the cane, so this is the one pose where neither arm
+    // touches the weapon at all. Reaches well past the shoulder ellipses
+    // (radius 3, out to ~cx±9) — anything shorter reads as a shrug, not a
+    // grab about to close.
+    c.line(cx + 6 + lean, top + 8, cx + 19, top + 6, C.omenSkin, 2);
+    c.line(cx - 6 + lean, top + 8, cx - 19, top + 6, C.omenSkin, 2);
+  } else if (pose === 'clutch') {
+    // Arms crossed sharply to the OPPOSITE shoulder (right hand grips left
+    // shoulder and vice versa) rather than just pulled toward the centre —
+    // a symmetric inward pull at this scale reads as no arms at all once it
+    // sits inside the torso silhouette; a cross stays visible against it and
+    // is the clearest possible contrast with 'reach's' wide-open sweep.
+    c.line(cx + 6 + lean, top + 8, cx - 5, top + 6, C.omenSkin, 2);
+    c.line(cx - 6 + lean, top + 8, cx + 5, top + 6, C.omenSkin, 2);
+  } else if (pose === 'flurryReady') {
+    c.line(cx + 6 + lean, top + 8, cx + 5, top + 17, C.omenSkin, 2);
+    c.line(cx - 6 + lean, top + 8, cx - 11, top + 10, C.omenSkin, 2);
+  } else if (pose === 'flurryArc') {
+    c.line(cx + 6 + lean, top + 8, cx - 10, top + 12, C.omenSkin, 2);
+    c.line(cx - 6 + lean, top + 8, cx - 9, top + 6, C.omenSkin, 2);
   } else {
     c.line(cx + 6 + lean, top + 8, cx + 9, top + 15, C.omenSkin, 2);
     c.line(cx - 6 + lean, top + 8, cx - 9, top + 15, C.omenSkin, 2);
@@ -465,27 +535,120 @@ function margitFrame({
               [cx + 9, top + 18, cx + 16, top + 30]
             : staff === 'rest'
               ? [cx + 10, top + 12, cx + 11, top + 33]
-              : null;
+              : staff === 'quickRaise'
+                ? // cane_swing_2: a short, snappy re-cock — deliberately far
+                  // smaller than cane_swing_1's full over-the-shoulder haul,
+                  // since it's a fast combo continuation the player has less
+                  // time to read, not a fresh opener.
+                  [cx + 5, top + 4, cx + 2, top + 13]
+                : staff === 'quickSwing'
+                  ? [cx + 10, top + 12, cx + 20, top + 14]
+                  : staff === 'overheadUp'
+                    ? // Both-handed grip, held straight above her — the
+                      // silhouette a light or heavy swing never makes.
+                      [cx + 2, top - 12, cx, top + 6]
+                    : staff === 'overheadDown'
+                      ? [cx + 3, top + 6, cx + 20, top + 16]
+                      : staff === 'chargeUp'
+                        ? // holy_thrust's charge: held level at chest height,
+                          // aimed rather than wound up — the glow (below) is
+                          // what actually sells the tell.
+                          [cx + 9, top + 9, cx + 20, top + 10]
+                        : staff === 'thrustOut'
+                          ? [cx + 9, top + 10, cx + 34, top + 11]
+                          : staff === 'leapThrust'
+                            ? // flying_thrust active: the longest visible
+                              // extension in the table, matching its 260px
+                              // hit range being the largest of any move.
+                              [cx + 12, top + 10, cx + 40, top + 12]
+                            : staff === 'trailLow'
+                              ? // sweep_kick: the cane is incidental — trailing
+                                // for balance while the leg does the hitting.
+                                [cx - 10, top + 16, cx - 2, top + 30]
+                              : staff === 'wideBehind'
+                                ? // grab's tell: cane parked at her side, since
+                                  // the claws are the threat here — but still
+                                  // touching the body silhouette (cape edge is
+                                  // ~cx-9), not floating disconnected in the
+                                  // empty space her wide-open arms leave.
+                                  [cx - 9, top + 18, cx - 13, top + 30]
+                                : staff === 'flurryCocked'
+                                  ? [cx + 4, top + 18, cx - 6, top + 26]
+                                  : staff === 'flurryArc'
+                                    ? [cx - 14, top + 10, cx + 22, top + 14]
+                                    : null;
   if (staffPose) {
     const [sx, sy, ex, ey] = staffPose;
     c.line(sx, sy, ex, ey, C.gold, 2);
     c.line(sx + 1, sy, ex + 1, ey, C.boneDark, 1);
     c.ellipse(sx, sy - 1, 2, 2, C.goldLit);
     c.ellipse(sx, sy - 1, 1, 1, C.bone);
+
+    // holy_thrust's charge: an arcane glow riding the cane's tip, brighter
+    // on the active frame than the tell — the same "charging then releasing"
+    // read the player's own cast glow already uses (playerFrame's `glow`).
+    if (glow) {
+      c.ellipse(ex, ey, 3, 3, rgba('#7a5ad0', 0.5));
+      c.ellipse(ex, ey, 1.6, 1.6, rgba('#b9a3ff', 0.85));
+    }
   }
 
   return c;
 }
 
+// Frame order is a contract with src/game/render/spriteFrames.ts's MF export
+// — index N here must be pose N there. MF.moves keys this by MoveDef.id
+// (margitMoves.ts), one tell + one active pair per move (#42 part 2): before
+// this, every move shared one generic windup/swing, so a 40-frame grab
+// telegraphed identically to a fast cane swing.
 const MARGIT_FRAMES = [
   () => margitFrame({ pose: 'idle', bob: 0, staff: 'rest' }), // 0 idle A
   () => margitFrame({ pose: 'idle', bob: 1, staff: 'rest' }), // 1 idle B
-  () => margitFrame({ pose: 'tell', bob: -1, lean: -2, staff: 'raised' }), // 2 tell/startup
-  () => margitFrame({ pose: 'lunge', bob: 1, lean: 3, staff: 'swung' }), // 3 active
-  () => margitFrame({ pose: 'idle', bob: 2, lean: 2, staff: 'low' }), // 4 recovery
-  () => margitFrame({ pose: 'limp', bob: 3, lean: -3, staff: 'dropped' }), // 5 staggered
-  () => margitFrame({ pose: 'limp', collapsed: true, staff: 'dropped' }), // 6 collapsed
-  () => margitFrame({ prone: true }), // 7 death
+  () => margitFrame({ pose: 'idle', bob: 2, lean: 2, staff: 'low' }), // 2 recovery (shared)
+  () => margitFrame({ pose: 'limp', bob: 3, lean: -3, staff: 'dropped' }), // 3 staggered
+  () => margitFrame({ pose: 'limp', collapsed: true, staff: 'dropped' }), // 4 collapsed
+  () => margitFrame({ prone: true }), // 5 death
+
+  // margit.cane_swing_1 — the baseline melee opener: one-handed pull-back,
+  // full-arc swing. Everything else is drawn to read as clearly NOT this.
+  () => margitFrame({ pose: 'tell', bob: -1, lean: -2, staff: 'raised' }), // 6 tell
+  () => margitFrame({ pose: 'lunge', bob: 1, lean: 3, staff: 'swung' }), // 7 active
+
+  // margit.cane_swing_2 — fast combo continuation: a short re-cock and a
+  // snappy low swing, not a full haul. Reads as quicker, not just smaller.
+  () => margitFrame({ pose: 'tell', bob: -1, lean: -1, staff: 'quickRaise' }), // 8 tell
+  () => margitFrame({ pose: 'lunge', bob: 1, lean: 2, staff: 'quickSwing' }), // 9 active
+
+  // margit.delayed_overhead — the two-handed overhead haul. Long tell, and
+  // the silhouette (both arms straight up) can't be mistaken for a swing.
+  () => margitFrame({ pose: 'overhead', bob: -2, lean: 0, staff: 'overheadUp' }), // 10 tell
+  () => margitFrame({ pose: 'overheadSlam', bob: 1, lean: 2, staff: 'overheadDown' }), // 11 active
+
+  // margit.holy_thrust — an aimed lance, not an arc: cane held level and
+  // charging (arcane glow), then driven straight forward.
+  () => margitFrame({ pose: 'tell', bob: -1, lean: -1, staff: 'chargeUp', glow: true }), // 12 tell
+  () => margitFrame({ pose: 'lunge', bob: 0, lean: 3, staff: 'thrustOut', glow: true }), // 13 active
+
+  // margit.flying_thrust — the gap closer: coils low, then leaps forward
+  // with the whole body committed, not just the arm.
+  () => margitFrame({ pose: 'coil', bob: -2, lean: -1, staff: 'chargeUp' }), // 14 tell
+  () => margitFrame({ pose: 'leap', bob: 1, lean: 5, staff: 'leapThrust' }), // 15 active
+
+  // margit.sweep_kick — the cane is incidental; the leg does the hitting.
+  () => margitFrame({ pose: 'kickReady', bob: -1, lean: -1, staff: 'trailLow' }), // 16 tell
+  () => margitFrame({ pose: 'kickOut', bob: 1, lean: 1, staff: 'trailLow' }), // 17 active
+
+  // margit.reaper_flurry — the finisher: widened stance, flared cape, a wide
+  // horizontal arc rather than a straight thrust or overhead chop.
+  () =>
+    margitFrame({ pose: 'flurryReady', bob: -1, lean: -1, staff: 'flurryCocked', capeFlare: true }), // 18 tell
+  () => margitFrame({ pose: 'flurryArc', bob: 1, lean: 2, staff: 'flurryArc', capeFlare: true }), // 19 active
+
+  // margit.grab — the longest tell in the table (F7: anti-turtle reach).
+  // Both arms spread open toward the player; the cane goes slack at her
+  // side, since the claws are the actual threat.
+  () => margitFrame({ pose: 'reach', bob: -1, lean: 0, staff: 'wideBehind' }), // 20 tell
+  () => margitFrame({ pose: 'clutch', bob: 1, lean: 1, staff: 'wideBehind' }), // 21 active
 ];
 
 // ---------------------------------------------------------------------------
