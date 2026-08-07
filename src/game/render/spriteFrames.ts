@@ -41,7 +41,13 @@ export const PF = {
   block: 15,
   cast: { startup: 16, active: 17, recovery: 17 },
   stagger: 18,
-  death: 19,
+  // A two-beat sequence (#42 part 2b), not a single instant snap to prone:
+  // `reel` holds briefly first. Reuses the stagger pose rather than drawing
+  // new art — an off-balance, arms-flung frame already reads as "just been
+  // hit hard," which is exactly the first beat of a death, and the scene
+  // times the hold since the sim itself freezes the instant hp hits 0
+  // (CombatScene.finished) and has no ticks left to drive an animation with.
+  death: { reel: 18, prone: 19 },
 } as const;
 
 /** Margit frames, indexed into margit.png.
@@ -62,7 +68,10 @@ export const MF = {
   recovery: 2,
   staggered: 3,
   collapsed: 4,
-  death: 5,
+  // Reuses the collapsed (posture-break) pose as death's first beat, same
+  // reasoning as the player's `death.reel` above — no new art needed, and a
+  // boss already reeling from posture break is a believable "about to fall."
+  death: { reel: 4, prone: 5 },
   moves: {
     'margit.cane_swing_1': { tell: 6, active: 7 },
     'margit.cane_swing_2': { tell: 8, active: 9 },
