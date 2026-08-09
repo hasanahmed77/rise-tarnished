@@ -17,7 +17,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky",
-    "assets": "node scripts/generate-sprites.mjs"
+    "assets": "node scripts/generate-sprites.mjs",
+    "audio": "node scripts/generate-audio.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.3",
