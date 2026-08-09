@@ -237,6 +237,48 @@ open art question is updated to record this.
   **#42 is now fully closed**: real sprites and arena (part 1), per-move
   tells (part 2a), and the remaining juice (part 2b).
 
+- **08-08:** #51 (new, outside this sprint's original committed scope) —
+  audio: combat SFX and a subtle looping dark-ambient bed. Same sourcing call
+  as #42's art and for the same reason: **generated, not sourced**.
+  "Dark Souls-like" is honoured as a mood target (low, sparse, muffled) via
+  original synthesis, not by shipping anyone else's recordings, which would
+  be a real copyright problem in a public repo.
+  <br><br>
+  Built a signal toolkit (`scripts/lib/audio.mjs`: oscillators, noise,
+  envelopes, a feedback-delay reverb, a dependency-free 16-bit PCM WAV
+  encoder) and a generator producing ten combat SFX (both swing weights, a
+  heavier boss swing, hit/critical hit, block, dodge, cast, hurt, death) plus
+  one 32-second ambient loop — a low drone in A with a fifth and a faint
+  sour second, a wide quiet noise bed, and a distant toll every 8s.
+  <br><br>
+  Caught a real bug via analysis rather than by ear (I cannot listen; see
+  below): the first ambience render had a seam discontinuity 6x a normal
+  sample step at the loop point — an audible click every 32s. Root cause was
+  that snapping every frequency to a whole number of cycles makes the
+  *sources* periodic, but the render still isn't, because filters (lowpass/
+  highpass/tremolo) start with zeroed internal state — so the opening seconds
+  carry a warm-up transient that doesn't match the settled tail. Fixed by
+  rendering two full loops and keeping only the second, now-settled one;
+  seam dropped to 0.63x a normal step (within ordinary waveform motion).
+  <br><br>
+  `src/game/audio/soundManifest.ts` is the contract (mirrors
+  `spriteFrames.ts`'s role): which keys exist and each one's mix volume.
+  Ambience is asserted quieter than every SFX by test, so "subtle" holds by
+  construction and can't silently drift louder in a later tune. Wired into
+  `CombatScene`: SFX fire from the same event sites hitstop/shake already
+  use, each with a small random detune so repeated hits don't sound
+  machine-gunned; ambience respects the browser's autoplay gesture-lock,
+  fades in over 2.5s once unlocked, and fades out when the fight ends; an M
+  key mutes everything (no settings UI yet, same gap already noted for
+  screenshake).
+  <br><br>
+  191 unit tests (up from 167), including the loop-seam regression test and
+  the quieter-than-every-SFX assertion. Verified programmatically — every
+  file confirmed non-silent, non-clipping, and reachable over HTTP from a
+  running dev server — but not by ear. **I cannot hear audio.** Whether the
+  actual sound design lands is a real playtest question, same open item as
+  the visual pass's feel-checks.
+
 ## Review (end of sprint)
 _(pending)_
 

@@ -64,6 +64,7 @@ npm run dev        # http://localhost:3000
 | `npm run format` | Prettier write across the repo |
 | `npm run format:check` | Prettier check (no writes) |
 | `npm run assets` | Regenerate the sprite/background PNGs (below) |
+| `npm run audio` | Regenerate the SFX/ambience WAVs (below) |
 
 ### Art assets
 
@@ -78,6 +79,27 @@ The generator writes frames in a fixed order that
 asserts the committed PNGs actually contain every frame the scene asks for —
 so a regenerate that changes the frame count fails CI rather than silently
 animating the wrong pose.
+
+### Audio
+
+Same policy as the art: all SFX and the ambient loop are **synthesised, not
+sourced** — `npm run audio` runs `scripts/generate-audio.mjs`
+(`scripts/lib/audio.mjs` is the underlying signal toolkit: oscillators,
+noise, envelopes, a feedback-delay reverb, and a dependency-free WAV
+encoder). "Dark Souls-like" is honoured as a mood target — low, sparse,
+muffled — not by shipping anyone else's recordings, which would be a real
+licensing problem in a public repo.
+
+`src/game/audio/soundManifest.ts` is the contract (which keys exist, how
+loud each sits) and `soundManifest.test.ts` asserts every key has a real,
+non-silent, non-clipping WAV behind it, and that the ambience loop's seam
+stays within normal waveform motion — the fix for a real click-every-32s bug
+caught during generation (filters start with zeroed state, so the first
+render pass doesn't match its own settled tail; the generator now renders
+two passes and keeps the second).
+
+Ambient volume is capped below every SFX's volume by test, keeping it
+subtle by construction, not just by convention.
 
 ### Local Supabase
 
