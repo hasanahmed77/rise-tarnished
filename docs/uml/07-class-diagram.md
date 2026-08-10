@@ -20,6 +20,17 @@ it listed as its operations — the closest honest UML treatment of "what
 this data's lifecycle is defined by." The two real OOP classes
 (`GameBridge`, `CombatScene`) are drawn as themselves, unmodified.
 
+Split into two diagrams — domain/runtime state, then persistence — purely
+because Mermaid's renderer has a per-diagram text-size ceiling and one
+combined diagram exceeded it. This isn't a scope reduction: every class,
+attribute, method, and relationship from the single-diagram draft is still
+here, just across two figures instead of one. It also happens to be a
+defensible split on its own merits — separating the in-memory logical
+model from the persisted data model is a common, legitimate documentation
+pattern independent of the tooling constraint that forced it here.
+
+## 7a. Domain / Runtime Classes
+
 ```mermaid
 classDiagram
     class PlayerCombatState {
@@ -173,15 +184,19 @@ classDiagram
 
     %% --- dependency (used as a parameter, never stored) ---
     PlayerCombatState ..> StepContext : step(state, input, ctx)
-    SelectionState ..> MoveDef : selects (shared read-only table,\nnot owned per boss instance)
+    SelectionState ..> MoveDef : selects
 
     %% --- CombatScene wiring ---
     CombatScene "1" o-- "1" PlayerCombatState
     CombatScene "1" o-- "1" BossCombatState
     CombatScene "1" --> "1" GameBridge
     CombatScene ..> StepContext : owns ctx
+```
 
-    %% --- persistence layer (Postgres) ---
+## 7b. Persistence Classes (Postgres, `supabase/migrations/`)
+
+```mermaid
+classDiagram
     class AuthUser {
         <<Postgres, auth.users>>
         +id: uuid
