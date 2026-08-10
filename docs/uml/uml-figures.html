@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Rise, Tarnished — UML Documentation</title>
+<title>Rise, Tarnished UML Documentation</title>
 <style>
   :root {
     --bg: #efe7d3;
@@ -378,91 +378,36 @@
       <p class="rail-group-label">Behavioral</p>
       <a href="#fig-1"><span class="num">01</span>Use Case Diagram</a>
       <a href="#fig-2"><span class="num">02</span>Use Case Description</a>
-      <a href="#fig-3"><span class="num">03</span>Sequence — Sign In</a>
-      <a href="#fig-4"><span class="num">04</span>Sequence — Fight</a>
-      <a href="#fig-5"><span class="num">05</span>Communication — Spend Runes</a>
-      <a href="#fig-6"><span class="num">06</span>Activity — Boss Decision</a>
+      <a href="#fig-3"><span class="num">03</span>Sequence (Sign In)</a>
+      <a href="#fig-4"><span class="num">04</span>Sequence (Fight)</a>
+      <a href="#fig-5"><span class="num">05</span>Communication (Spend Runes)</a>
+      <a href="#fig-6"><span class="num">06</span>Activity (Boss Decision)</a>
       <p class="rail-group-label">Structural</p>
-      <a href="#fig-7"><span class="num">07a</span>Class — Domain</a>
-      <a href="#fig-7b"><span class="num">07b</span>Class — Persistence</a>
+      <a href="#fig-7"><span class="num">07a</span>Class (Domain)</a>
+      <a href="#fig-7b"><span class="num">07b</span>Class (Persistence)</a>
     </nav>
   </aside>
 
   <main>
     <header class="hero" id="overview">
-      <p class="eyebrow">Software Engineering — UML Deliverables</p>
-      <h1>Seven diagrams, traced to the shipped codebase</h1>
+      <p class="eyebrow">Software Engineering, UML Deliverables</p>
+      <h1>Seven diagrams for Rise, Tarnished</h1>
       <p>
-        Every figure below was checked against the actual source of
-        <b>Rise, Tarnished</b> — not drawn from a template and relabeled.
-        The plan this was built from
-        (<code style="font-family: var(--mono)">docs/uml-plan.md</code>)
-        went through two rigor passes and caught six real modeling errors
-        before a single diagram was drawn; three more were caught while
-        drawing. Every correction is left visible below rather than
-        silently fixed, because the corrections are evidence of rigor, not
-        a flaw to hide.
+        <b>Rise, Tarnished</b> is a 2D souls-like boss-rush game. Each
+        diagram below is traced directly to the shipped source code
+        (<code style="font-family: var(--mono)">docs/uml-plan.md</code>
+        documents the full modeling plan).
       </p>
     </header>
-
-    <div class="callout corrected">
-      <span class="tag">Corrected</span>
-      <ul>
-        <li>
-          <b>Include vs. extend.</b> Dodge, Block, and Cast Sorcery were
-          first modeled as <code>«include»</code> of Fight the Adaptive
-          Boss. All three are player choices, not guaranteed steps — moved
-          to <code>«extend»</code>. Move and Attack stayed
-          <code>«include»</code> because winning is provably impossible
-          without them.
-        </li>
-        <li>
-          <b>A fabricated relationship.</b> The first class-diagram draft
-          claimed <code>BossCombatState</code> depends on
-          <code>PlayerBuild</code>. Checked <code>BossStepContext</code>
-          directly — it has no <code>build</code> field at all. Dropped
-          entirely rather than patched.
-        </li>
-        <li>
-          <b>A backwards, invalid dependency.</b> <code>Boss ↔
-          AttemptLog</code> was drawn with the arrow pointing the wrong way
-          <i>and</i> carrying an association-style multiplicity on a
-          dependency arrow, which UML doesn't permit. Rebuilt as a
-          correctly-directed, stereotyped association instead.
-        </li>
-      </ul>
-    </div>
-
-    <div class="callout fact">
-      <span class="tag">Modeling call</span>
-      <ul>
-        <li>
-          The system is a <b>functional core / imperative shell</b>
-          (ADR-0001) — state lives in plain interfaces, transformed by pure
-          functions, not classes with instance methods. The class diagram
-          models each state interface as a class with its real fields and
-          its real pure functions as operations, rather than inventing
-          OOP methods that don't exist in the source.
-        </li>
-        <li>
-          Mermaid has no native use-case or communication diagram syntax.
-          Both are built with <code>flowchart</code> — stadium shapes
-          standing in for UML ovals, and numbered edge labels standing in
-          for a communication diagram's message sequence. Noted at each
-          figure, not hidden.
-        </li>
-      </ul>
-    </div>
 
     <!-- FIGURE 1 — USE CASE DIAGRAM -->
     <section class="figure" id="fig-1">
       <p class="fig-eyebrow">Figure 01 · Use Case Diagram</p>
       <h2 class="fig-title">The shipped MVP loop</h2>
       <p class="fig-desc">
-        Player, Google, and Supabase as actors; only the loop that actually
-        exists — sign in → resume → fight → outcome → resolve/spend. The
-        unimplemented LLM recap (#13) and bot-harness (#14) are left out
-        rather than diagrammed as if shipped.
+        Player, Google, and Supabase are the actors. The diagram covers the
+        loop that is actually implemented, sign in, resume, fight, view
+        outcome, and resolve or spend runes.
       </p>
       <div class="chips">
         <span class="chip">src/app/page.tsx</span>
@@ -478,7 +423,7 @@ flowchart LR
     Google(["🌐 Google&lt;br/&gt;(OAuth Provider)"])
     Supabase(["🗄️ Supabase Platform&lt;br/&gt;(Auth + Postgres)"])
 
-    subgraph SYS["System Boundary — Rise, Tarnished"]
+    subgraph SYS["System Boundary (Rise, Tarnished)"]
         direction TB
         UC1(["Sign In&lt;br/&gt;(with Google)"])
         UC2(["Sign Out"])
@@ -522,19 +467,19 @@ flowchart LR
         <div class="note gold">
           <div class="bar"></div>
           <div>
-            <b>The strict include/extend test:</b> a sub-behavior is
-            <code>«include»</code>d only if it's performed, unconditionally,
-            at a defined point in <i>every</i> completed instance of the
-            base use case — not merely whether it <i>can</i> happen.
+            A sub-behavior is <code>«include»</code>d only if it is
+            performed, unconditionally, at a defined point in <i>every</i>
+            completed instance of the base use case, not merely because it
+            <i>can</i> happen.
           </div>
         </div>
         <div class="note steel">
           <div class="bar"></div>
           <div>
-            Supabase is modeled as a secondary actor, not inside the
-            boundary — the use cases describe player goals, and Supabase is
-            a service the system calls out to, never something the player
-            touches directly.
+            Supabase is modeled as a secondary actor rather than inside the
+            system boundary. The use cases describe player goals, and
+            Supabase is a service the system calls out to, not something
+            the player interacts with directly.
           </div>
         </div>
       </div>
@@ -543,11 +488,11 @@ flowchart LR
     <!-- FIGURE 2 — USE CASE DESCRIPTION -->
     <section class="figure" id="fig-2">
       <p class="fig-eyebrow">Figure 02 · Detailed Use Case Description</p>
-      <h2 class="fig-title">UC-05 — Fight the Adaptive Boss</h2>
+      <h2 class="fig-title">UC-05, Fight the Adaptive Boss</h2>
       <p class="fig-desc">
-        Chosen as the one detailed description because it's the only use
-        case with real alternate flows, a real failure path, and real
-        business rules — everything else is infrastructure or a single RPC
+        This use case is documented in detail because it has real
+        alternate flows, a real failure path, and real business rules. The
+        remaining use cases are simple infrastructure or a single RPC
         call.
       </p>
       <div class="chips">
@@ -560,11 +505,11 @@ flowchart LR
       <div class="diagram-frame" style="overflow-x: auto">
         <table class="uc-table">
           <tr><th>Primary Actor</th><td>Player</td></tr>
-          <tr><th>Preconditions</th><td>Signed in, on <code>/play</code>; <code>fight:start</code> fired with a real <code>PlayerBuild</code> — <code>CombatScene.startFight()</code> has run and <code>this.ready === true</code>.</td></tr>
-          <tr><th>Postconditions — win</th><td><code>determineFightOutcome</code> returns <code>'victory'</code>; <code>fight:outcome</code> emitted with an optimistic estimate; <b>Resolve Attempt</b> persists the real reward.</td></tr>
-          <tr><th>Postconditions — loss</th><td>Same event, <code>result: 'death'</code>; reward computed as <b>0</b> by design — death pays nothing, enforced again server-side and never trusted from the client.</td></tr>
+          <tr><th>Preconditions</th><td>Signed in and on <code>/play</code>. <code>fight:start</code> fired with a real <code>PlayerBuild</code>. <code>CombatScene.startFight()</code> has run and <code>this.ready</code> is true.</td></tr>
+          <tr><th>Postconditions, win</th><td><code>determineFightOutcome</code> returns <code>'victory'</code>. <code>fight:outcome</code> is emitted with an optimistic estimate. <b>Resolve Attempt</b> persists the real reward.</td></tr>
+          <tr><th>Postconditions, loss</th><td>Same event, with <code>result: 'death'</code>. Reward is computed as <b>0</b> by design. Death pays nothing, and this is enforced again server-side rather than trusted from the client.</td></tr>
           <tr><th>Trigger</th><td>The <code>fight:start</code> bridge event, once <code>PlayShell</code> has a resolved build.</td></tr>
-          <tr><th>Main flow</th><td>Fixed 60Hz tick: sample input → <code>playerCombat.step</code> → <code>bossCombat.step</code> (L2 tactic re-score, L3 move selection) → cross-entity hit resolution → render → repeat until a terminal HP state.</td></tr>
+          <tr><th>Main flow</th><td>Fixed 60Hz tick. Sample input, then <code>playerCombat.step</code>, then <code>bossCombat.step</code> (L2 tactic re-score, L3 move selection), then cross-entity hit resolution, then render. Repeats until a terminal HP state.</td></tr>
           <tr><th>Alt flows</th><td>A1 Dodge (i-frames) · A2 Block (stamina drain, guard break) · A3 Cast Sorcery (FP-gated) · A4 Boss <code>PUNISH</code> pre-empts on an opening · A5 Boss <code>RECOVER</code> skips selection entirely · A6 Posture break opens a critical window.</td></tr>
           <tr><th>Exceptions</th><td>E1 Simultaneous near-KO resolves to exactly one outcome, never double-reported · E2 A stalled frame is capped at 5 ticks' catch-up, never a runaway burst.</td></tr>
           <tr><th>Business rules</th><td><code>F1</code> tell ≥18 ticks · <code>F2</code> ≥30-tick sequence gap · <code>F3</code> chain cap · <code>F5</code> punish ≤1/4s · <code>F7</code> grabs never combo · <code>F8</code> no 3rd consecutive repeat.</td></tr>
@@ -574,13 +519,13 @@ flowchart LR
 
     <!-- FIGURE 3 — SEQUENCE: SIGN IN -->
     <section class="figure" id="fig-3">
-      <p class="fig-eyebrow">Figure 03 · Sequence Diagram — drawn by Member A</p>
+      <p class="fig-eyebrow">Figure 03 · Sequence Diagram (Member A)</p>
       <h2 class="fig-title">Sign In (with Google)</h2>
       <p class="fig-desc">
-        A strictly time-ordered four-hop redirect chain — exactly what a
-        vertical timeline reads best. The provisioning step is wrapped in
-        an <code>opt</code> fragment because it only fires the very first
-        time a given Google account signs in.
+        A strictly time-ordered four-hop redirect chain, shown as a
+        vertical timeline. The provisioning step is wrapped in an
+        <code>opt</code> fragment because it only fires the first time a
+        given Google account signs in.
       </p>
       <div class="chips">
         <span class="chip">src/components/AuthButton.tsx</span>
@@ -630,23 +575,23 @@ sequenceDiagram
       <div class="notes">
         <div class="note gold">
           <div class="bar"></div>
-          <div>No password ever touches this system — Google OAuth is the sole sign-in method (ADR-0003).</div>
+          <div>No password ever touches this system. Google OAuth is the sole sign-in method (ADR-0003).</div>
         </div>
         <div class="note steel">
           <div class="bar"></div>
-          <div><code>PlayPage</code> is a server component — <code>auth.getUser()</code> runs on the server before any HTML reaches the browser.</div>
+          <div><code>PlayPage</code> is a server component. <code>auth.getUser()</code> runs on the server before any HTML reaches the browser.</div>
         </div>
       </div>
     </section>
 
     <!-- FIGURE 4 — SEQUENCE: FIGHT -->
     <section class="figure" id="fig-4">
-      <p class="fig-eyebrow">Figure 04 · Sequence Diagram — drawn by Member B</p>
-      <h2 class="fig-title">Fight the Adaptive Boss — one tick, a light attack connects</h2>
+      <p class="fig-eyebrow">Figure 04 · Sequence Diagram (Member B)</p>
+      <h2 class="fig-title">Fight the Adaptive Boss (One Tick, Light Attack Connects)</h2>
       <p class="fig-desc">
-        Scope is deliberately one representative tick, not the whole
-        multi-minute fight — showing "loop 3,600+ times" end to end would
-        communicate less than one real tick does.
+        Scope is deliberately one representative tick rather than the whole
+        multi-minute fight. Showing the loop repeat 3,600+ times end to end
+        would communicate less than one real tick does.
       </p>
       <div class="chips">
         <span class="chip">CombatScene.ts (update, resolvePlayerAttackOnBoss)</span>
@@ -682,19 +627,19 @@ sequenceDiagram
 
         Scene->>BC: step(boss, bossCtx)
         BC->>Tac: tickTactic(prev, getSignals, ctx)
-        Note over Tac: runs unconditionally every tick —&lt;br/&gt;even mid-swing or staggered
+        Note over Tac: runs unconditionally every tick,&lt;br/&gt;even mid-swing or staggered
         Tac-->>BC: {state, changed}
 
         alt boss idle (action == null) and tactic != RECOVER
             BC->>Sel: selectTopLevel(table, ids, distance, state, weighting)
             Sel-->>BC: {kind:'move', moveId} or {kind:'no-action'}
         else tactic == RECOVER
-            Note over BC: selection skipped —&lt;br/&gt;approach() only
+            Note over BC: selection skipped,&lt;br/&gt;approach() only
         end
         BC-->>Scene: {state, events}
 
         Scene->>Scene: determineFightOutcome(boss.hp, sim.hp)
-        Scene->>Scene: render() — sprites, HUD, audio
+        Scene->>Scene: render() with sprites, HUD, audio
     end
 
     Scene-->>Player: outcome reached → fight:outcome emitted
@@ -703,25 +648,26 @@ sequenceDiagram
       <div class="notes">
         <div class="note gold">
           <div class="bar"></div>
-          <div>No network round-trip happens during the fight — <code>step()</code> is pure, local state only, which is what makes the fixed-timestep loop replayable from a seed.</div>
+          <div>No network round-trip happens during the fight. <code>step()</code> is a pure function over local state only, which is what makes the fixed-timestep loop replayable from a seed.</div>
         </div>
         <div class="note blood">
           <div class="bar"></div>
-          <div>The <code>RECOVER</code> branch is drawn explicitly — it's the exact mechanism a prior playtest fix (PR #48) added, so the boss now gives a smothered player real relief instead of escalating pressure.</div>
+          <div>The <code>RECOVER</code> branch is drawn explicitly. It gives a smothered player real relief instead of escalating pressure further.</div>
         </div>
       </div>
     </section>
 
     <!-- FIGURE 5 — COMMUNICATION: SPEND RUNES -->
     <section class="figure" id="fig-5">
-      <p class="fig-eyebrow">Figure 05 · Communication Diagram — drawn by Member C</p>
+      <p class="fig-eyebrow">Figure 05 · Communication Diagram (Member C)</p>
       <h2 class="fig-title">Spend Runes on Stats</h2>
       <p class="fig-desc">
-        Chosen for the communication (not sequence) treatment because its
-        story is about which object owns which piece of validation — the
-        RPC vs. the row it locks — which a hub-and-spoke layout foregrounds
-        better than a timeline. Mermaid has no native communication-diagram
-        type; this is built with numbered, labelled flowchart edges.
+        Shown as a communication diagram rather than a sequence diagram
+        because the story is about which object owns which piece of
+        validation, the RPC versus the row it locks, and a hub-and-spoke
+        layout foregrounds that better than a timeline. Mermaid has no
+        native communication-diagram type, so this is built with numbered,
+        labeled flowchart edges.
       </p>
       <div class="chips">
         <span class="chip">src/components/CharacterSheet.tsx (confirmSpend)</span>
@@ -743,7 +689,7 @@ flowchart TD
     PostgREST -- "4: invoke as&lt;br/&gt;authenticated role" --> RPC
     RPC -- "5: SELECT ... FOR UPDATE" --> Table
     Table -- "6: locked row value" --> RPC
-    RPC -- "7: cost = 100+25×(current-10);&lt;br/&gt;UPDATE ... WHERE runes>=cost&lt;br/&gt;AND current<60" --> Table
+    RPC -- "7: cost = 100+25×(current-10),&lt;br/&gt;UPDATE ... WHERE runes>=cost&lt;br/&gt;AND current<60" --> Table
     Table -- "8: RETURNING new row,&lt;br/&gt;or 0 rows affected" --> RPC
     RPC -- "9: new stats/runes,&lt;br/&gt;or raise exception" --> PostgREST
     PostgREST -- "10: JSON response" --> Client
@@ -754,11 +700,11 @@ flowchart TD
       <div class="notes">
         <div class="note gold">
           <div class="bar"></div>
-          <div><b>Message 5 is the whole point of this diagram.</b> The next point's cost depends on the stat's <i>current</i> value, so it must be read before it's charged for. A plain <code>SELECT</code> first would let two concurrent calls both read the same pre-spend value and both pass a balance check against runes neither has actually paid — <code>SELECT ... FOR UPDATE</code> closes that race.</div>
+          <div><b>Message 5 is the whole point of this diagram.</b> The next point's cost depends on the stat's <i>current</i> value, so it must be read before it's charged for. A plain <code>SELECT</code> first would let two concurrent calls both read the same pre-spend value and both pass a balance check against runes neither has actually paid. <code>SELECT ... FOR UPDATE</code> closes that race.</div>
         </div>
         <div class="note steel">
           <div class="bar"></div>
-          <div>The client never supplies an amount (ADR-0003) — <code>p_stat</code> selects <i>which</i> rule applies; the RPC computes cost and validates the hard cap itself, server-side, every time.</div>
+          <div>The client never supplies an amount (ADR-0003). <code>p_stat</code> selects <i>which</i> rule applies, and the RPC computes cost and validates the hard cap itself, server-side, every time.</div>
         </div>
       </div>
     </section>
@@ -768,11 +714,11 @@ flowchart TD
       <p class="fig-eyebrow">Figure 06 · Activity Diagram</p>
       <h2 class="fig-title">Boss L2→L3 Decision Process (one tick)</h2>
       <p class="fig-desc">
-        The named criterion was "whose decision-making is best understood
-        as a workflow" — nothing else in the system comes close on
-        decision density. Two structural facts, re-verified against source
-        before drawing: L2 runs <i>every</i> tick unconditionally, and
-        <code>RECOVER</code> skips L3 entirely rather than biasing it.
+        This diagram was chosen because the boss AI's decision-making is
+        best understood as a workflow, and nothing else in the system has
+        comparable decision density. L2 runs <i>every</i> tick
+        unconditionally, and <code>RECOVER</code> skips L3 entirely rather
+        than biasing it.
       </p>
       <div class="chips">
         <span class="chip">bossCombat.ts (step)</span>
@@ -785,13 +731,13 @@ flowchart TD
     Start(("●")) --> Decay[Passive per-tick decay:&lt;br/&gt;poise, posture, selection cooldowns]
     Decay --> L2Start
 
-    subgraph L2["L2 — Tactic Machine — runs every tick, unconditionally"]
+    subgraph L2["L2 Tactic Machine (runs every tick, unconditionally)"]
         direction TB
         L2Start{Punishable opening&lt;br/&gt;AND cooldown == 0&lt;br/&gt;AND tactic != PUNISH?}
         L2Start -- yes --> SetPunish[Set tactic = PUNISH&lt;br/&gt;reset F5 cooldown]
         L2Start -- no --> HoldCheck{Hold timer&lt;br/&gt;expired?}
         HoldCheck -- no --> KeepTactic[Keep current tactic]
-        HoldCheck -- yes --> Softmax["Softmax pick over 5 tactics&lt;br/&gt;{probabilistic — weights =&lt;br/&gt;BASE_SCORE × behaviorMod}"]
+        HoldCheck -- yes --> Softmax["Softmax pick over 5 tactics&lt;br/&gt;{probabilistic, weights =&lt;br/&gt;BASE_SCORE × behaviorMod}"]
         Softmax --> NewTactic[New tactic + new hold duration]
     end
 
@@ -802,10 +748,10 @@ flowchart TD
     Gate1{staggerTicks > 0?}
     Gate1 -- yes --> WaitStagger[Decrement stagger, no action]
     Gate1 -- no --> Gate2{Posture critical&lt;br/&gt;window open?}
-    Gate2 -- yes --> Frozen[Collapsed — frozen]
+    Gate2 -- yes --> Frozen[Collapsed, frozen]
     Gate2 -- no --> Gate3{action == null&lt;br/&gt;boss idle?}
 
-    subgraph L3["L3 — Action Selection"]
+    subgraph L3["L3 Action Selection"]
         direction TB
         Gate3 -- no, mid-action --> AdvancePhase[Advance startup→active→recovery]
         AdvancePhase --> RecoveryDone{Recovery phase&lt;br/&gt;just finished?}
@@ -815,13 +761,13 @@ flowchart TD
         ComboCheck -- yes --> ComboFilter[Filter combo.next links:&lt;br/&gt;range, cooldown, F8, condition]
         ComboFilter --> ComboPick["Weighted pick + unclaimed&lt;br/&gt;'end sequence' mass&lt;br/&gt;{probabilistic}"]
         ComboPick --> ComboResult{Link picked?}
-        ComboResult -- yes --> StartMove1[startMove — continue combo]
+        ComboResult -- yes --> StartMove1[startMove, continue combo]
         ComboResult -- no --> SeqEnd1[sequence-end, start F2 gap]
 
         ComboCheck -- no --> SeqEnd2[sequence-end, start F2 gap]
 
         Gate3 -- yes, idle --> RecoverCheck{tactic == RECOVER?}
-        RecoverCheck -- yes --> ApproachOnly["approach() only —&lt;br/&gt;L3 skipped entirely"]
+        RecoverCheck -- yes --> ApproachOnly["approach() only,&lt;br/&gt;L3 skipped entirely"]
         RecoverCheck -- no --> GapCheck{gapTicksRemaining > 0?}
         GapCheck -- yes --> ApproachOnly2[no-action: approach]
         GapCheck -- no --> EligFilter[Filter table: range, cooldown, F8]
@@ -832,7 +778,7 @@ flowchart TD
         TacticMatch -- no --> PoolFallback["pool = full eligible set&lt;br/&gt;(documented fallback)"]
         PoolMatched --> WeightedPick["Weighted pick over pool&lt;br/&gt;{probabilistic}"]
         PoolFallback --> WeightedPick
-        WeightedPick --> StartMove2[startMove — fresh sequence]
+        WeightedPick --> StartMove2[startMove, fresh sequence]
     end
 
     WaitStagger --> End(("●"))
@@ -850,26 +796,23 @@ flowchart TD
       <div class="notes">
         <div class="note blood">
           <div class="bar"></div>
-          <div><b>Notation caveat, stated on purpose:</b> standard UML decision nodes carry mutually-exclusive boolean guards. The two weighted picks here are <i>probabilistic</i> — nothing about system state alone determines the branch, only a distribution does. Both are labelled <code>{probabilistic}</code> rather than drawn like an ordinary <code>if</code>.</div>
+          <div>Standard UML decision nodes carry mutually-exclusive boolean guards. The two weighted picks here are <i>probabilistic</i>, since nothing about system state alone determines the branch, only a distribution does. Both are labeled <code>{probabilistic}</code> rather than drawn like an ordinary <code>if</code>.</div>
         </div>
       </div>
     </section>
 
     <!-- FIGURE 7 — CLASS DIAGRAM -->
     <section class="figure" id="fig-7">
-      <p class="fig-eyebrow">Figure 07a · Class Diagram — Domain / Runtime</p>
-      <h2 class="fig-title">In-memory state: combat, boss AI, and the scene</h2>
+      <p class="fig-eyebrow">Figure 07a · Class Diagram, Domain / Runtime</p>
+      <h2 class="fig-title">In-Memory State for Combat, Boss AI, and the Scene</h2>
       <p class="fig-desc">
-        The system is a functional core / imperative shell (ADR-0001).
-        State interfaces are modeled as classes with their real fields and
-        the actual pure functions that transform them as operations — the
-        two real OOP classes (<code>GameBridge</code>,
-        <code>CombatScene</code>) are drawn as themselves. Split from the
-        persistence layer (Figure 07b) purely because Mermaid's per-diagram
-        text-size ceiling rejected one combined diagram — every class,
-        attribute, method, and relationship from the original draft is
-        still here, just across two figures. Separating the logical model
-        from the data model is a defensible pattern on its own merits too.
+        The system follows a functional core, imperative shell design
+        (ADR-0001). State interfaces are modeled as classes with their real
+        fields and the pure functions that transform them as operations.
+        <code>GameBridge</code> and <code>CombatScene</code> are the two
+        real OOP classes and are drawn as themselves. This diagram covers
+        domain and runtime state. Persistence classes are shown separately
+        in Figure 07b.
       </p>
       <div class="chips">
         <span class="chip">playerCombat.ts</span>
@@ -1042,22 +985,21 @@ classDiagram
       <div class="notes">
         <div class="note blood">
           <div class="bar"></div>
-          <div><b><code>PlayerCombatState → PlayerBuild</code> — corrected.</b> First draft claimed a direct 1-to-1 association. Checked the interface directly: <code>PlayerCombatState</code> has no <code>build</code> field — it lives on the separate <code>StepContext</code> parameter object, used only as a dependency, never stored.</div>
+          <div><code>PlayerCombatState</code> has no <code>build</code> field. The player build is passed through the separate <code>StepContext</code> parameter object as a dependency, and is never stored directly on <code>PlayerCombatState</code>.</div>
         </div>
         <div class="note gold">
           <div class="bar"></div>
-          <div>No relationship is drawn between <code>BossCombatState</code> and <code>PlayerBuild</code> at all — a first draft claimed one; checked <code>BossStepContext</code> directly and it has no <code>build</code> field and no path to one. The boss's step function never reads the player's stat build.</div>
+          <div>No relationship is drawn between <code>BossCombatState</code> and <code>PlayerBuild</code>. The boss's step function never reads the player's stat build.</div>
         </div>
       </div>
     </section>
 
     <section class="figure" id="fig-7b">
-      <p class="fig-eyebrow">Figure 07b · Class Diagram — Persistence</p>
-      <h2 class="fig-title">Postgres tables and their real multiplicities</h2>
+      <p class="fig-eyebrow">Figure 07b · Class Diagram, Persistence</p>
+      <h2 class="fig-title">Postgres Tables and Their Real Multiplicities</h2>
       <p class="fig-desc">
-        Multiplicities read off the actual constraints, not assumed — see
-        the notes below for two that turned out different from the first
-        draft once checked against the schema directly.
+        Multiplicities are read directly from the database constraints
+        rather than assumed.
       </p>
       <div class="chips">
         <span class="chip">supabase/migrations/*.sql</span>
@@ -1122,20 +1064,19 @@ classDiagram
       <div class="notes">
         <div class="note blood">
           <div class="bar"></div>
-          <div><b><code>AttemptLog → Boss</code> — corrected twice over.</b> First draft had the dependency arrow pointing the wrong way (a dependency points from the dependent to what it depends on) <i>and</i> carrying an association-style multiplicity, which a dependency can't. Checked the schema directly: no FK exists — <code>attempt_logs.boss_id</code> is validated only inside <code>resolve_attempt</code>, never by Postgres. Rebuilt as a correctly-directed association, stereotyped to say so.</div>
+          <div><code>AttemptLog</code> references <code>Boss</code> through <code>boss_id</code>, but no foreign key exists at the database level. The value is validated only inside <code>resolve_attempt</code>, not by Postgres, so the relationship is stereotyped <code>«not FK-enforced»</code>.</div>
         </div>
         <div class="note gold">
           <div class="bar"></div>
-          <div><code>AuthUser — PlayerStats/PlayerProgress</code> are <b>0..1, not 1</b> — provisioning is an application-level trigger, not a schema guarantee. A backfill migration exists precisely because pre-trigger accounts once had zero.</div>
+          <div><code>AuthUser</code> to <code>PlayerStats</code> and <code>PlayerProgress</code> are <b>0..1</b> relationships, not <b>1</b>, since provisioning happens through an application-level trigger rather than a schema guarantee. A backfill migration exists because pre-trigger accounts once had zero.</div>
         </div>
       </div>
     </section>
 
     <footer>
-      Source of truth for every figure lives in
+      Source content for every figure lives in
       <code style="font-family: var(--mono)">docs/uml/</code> in the
-      repository — this page is a rendered view of that content, built for
-      review, not a replacement for it.
+      repository. This page is a rendered view of that content.
     </footer>
   </main>
 </div>
