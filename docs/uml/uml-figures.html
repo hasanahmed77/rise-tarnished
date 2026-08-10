@@ -292,6 +292,103 @@
     justify-content: center;
   }
 
+  /* Hand-authored UML figures (use case, communication). Mermaid has no
+     native diagram type for either, so these are drawn directly rather
+     than approximated with a flowchart. */
+  svg.uml-svg {
+    display: block;
+    margin: 0 auto;
+    max-width: 100%;
+    height: auto;
+    font-family: var(--sans);
+  }
+  svg.uml-svg text {
+    fill: var(--ink);
+    font-size: 13px;
+  }
+  .uml-boundary {
+    fill: none;
+    stroke: var(--line);
+    stroke-width: 1.5;
+  }
+  .uml-boundary-title {
+    fill: var(--ink-dim);
+    font-size: 13.5px;
+    letter-spacing: 0.03em;
+  }
+  .uml-usecase {
+    fill: var(--bg-raised);
+    stroke: var(--gold);
+    stroke-width: 1.5;
+  }
+  .uml-object {
+    fill: var(--bg-raised);
+    stroke: var(--gold);
+    stroke-width: 1.5;
+  }
+  .uml-actor-head {
+    fill: var(--bg-raised);
+    stroke: var(--ink-dim);
+    stroke-width: 1.6;
+  }
+  .uml-actor-line {
+    fill: none;
+    stroke: var(--ink-dim);
+    stroke-width: 1.6;
+    stroke-linecap: round;
+  }
+  .uml-actor-name {
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  .uml-actor-sub {
+    font-size: 11px;
+    fill: var(--ink-dim);
+  }
+  .uml-assoc {
+    fill: none;
+    stroke: var(--ink-dim);
+    stroke-width: 1.2;
+  }
+  .uml-dep {
+    fill: none;
+    stroke: var(--ink-dim);
+    stroke-width: 1.2;
+    stroke-dasharray: 6 4;
+  }
+  .uml-arrowhead {
+    fill: none;
+    stroke: var(--ink-dim);
+    stroke-width: 1.4;
+  }
+  .uml-msg-arrowhead {
+    fill: var(--ink-dim);
+    stroke: none;
+  }
+  .uml-objname {
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: underline;
+  }
+  .uml-stereotype {
+    font-size: 11px;
+    fill: var(--ink-dim);
+  }
+  .uml-msg {
+    font-size: 10.5px;
+    fill: var(--ink);
+  }
+  .uml-msg-num {
+    font-weight: 700;
+  }
+  .uml-label-bg {
+    fill: var(--card-bg);
+  }
+  .uml-sub {
+    font-size: 10.5px;
+    fill: var(--ink-dim);
+  }
+
   .notes {
     margin-top: 1.3rem;
     display: flex;
@@ -381,7 +478,8 @@
       <a href="#fig-3"><span class="num">03</span>Sequence (Sign In)</a>
       <a href="#fig-4"><span class="num">04</span>Sequence (Fight)</a>
       <a href="#fig-5"><span class="num">05</span>Communication (Spend Runes)</a>
-      <a href="#fig-6"><span class="num">06</span>Activity (Boss Decision)</a>
+      <a href="#fig-6"><span class="num">06a</span>Activity (Tactic)</a>
+      <a href="#fig-6b"><span class="num">06b</span>Activity (Action)</a>
       <p class="rail-group-label">Structural</p>
       <a href="#fig-7"><span class="num">07a</span>Class (Domain)</a>
       <a href="#fig-7b"><span class="num">07b</span>Class (Persistence)</a>
@@ -417,51 +515,136 @@
         <span class="chip">src/game/scenes/CombatScene.ts</span>
       </div>
       <div class="diagram-frame">
-        <pre class="mermaid">
-flowchart LR
-    Player(["🧑 Player"])
-    Google(["🌐 Google&lt;br/&gt;(OAuth Provider)"])
-    Supabase(["🗄️ Supabase Platform&lt;br/&gt;(Auth + Postgres)"])
+        <svg class="uml-svg" viewBox="0 0 1300 980" role="img"
+             aria-label="Use case diagram. Player, Google, and Supabase actors are each associated with individual use cases inside the Rise, Tarnished system boundary.">
+          <defs>
+            <marker id="uc-arrow" viewBox="0 0 10 10" refX="9.5" refY="5"
+                    markerWidth="8" markerHeight="8" orient="auto">
+              <path d="M0,0 L10,5 L0,10" class="uml-arrowhead"/>
+            </marker>
+          </defs>
 
-    subgraph SYS["System Boundary (Rise, Tarnished)"]
-        direction TB
-        UC1(["Sign In&lt;br/&gt;(with Google)"])
-        UC2(["Sign Out"])
-        UC3(["Resume Progress"])
-        UC4(["Spend Runes&lt;br/&gt;on Stats"])
-        UC5(["Fight the&lt;br/&gt;Adaptive Boss"])
-        UC6(["Move"])
-        UC7(["Attack&lt;br/&gt;(Light / Heavy)"])
-        UC8(["Dodge"])
-        UC9(["Block"])
-        UC10(["Cast Sorcery"])
-        UC11(["Land a&lt;br/&gt;Critical Hit"])
-        UC12(["View Fight&lt;br/&gt;Outcome"])
-        UC13(["Resolve Attempt&lt;br/&gt;(persist result,&lt;br/&gt;grant runes)"])
-    end
+          <!-- system boundary -->
+          <rect x="260" y="30" width="810" height="920" rx="4" class="uml-boundary"/>
+          <text x="665" y="61" text-anchor="middle" class="uml-boundary-title">Rise, Tarnished</text>
 
-    Player --- UC1
-    Player --- UC2
-    Player --- UC3
-    Player --- UC4
-    Player --- UC5
-    Player --- UC12
+          <!-- actor: Player -->
+          <circle cx="140" cy="316" r="13" class="uml-actor-head"/>
+          <path class="uml-actor-line"
+                d="M140,329 L140,362 M120,341 L160,341 M140,362 L127,386 M140,362 L153,386"/>
+          <text x="140" y="408" text-anchor="middle" class="uml-actor-name">Player</text>
 
-    Google --- UC1
-    Supabase --- UC1
-    Supabase --- UC2
-    Supabase --- UC3
-    Supabase --- UC4
-    Supabase --- UC13
+          <!-- actor: Google -->
+          <circle cx="1190" cy="106" r="13" class="uml-actor-head"/>
+          <path class="uml-actor-line"
+                d="M1190,119 L1190,152 M1170,131 L1210,131 M1190,152 L1177,176 M1190,152 L1203,176"/>
+          <text x="1190" y="198" text-anchor="middle" class="uml-actor-name">Google</text>
+          <text x="1190" y="214" text-anchor="middle" class="uml-actor-sub">(OAuth Provider)</text>
 
-    UC5 -. "«include»" .-> UC6
-    UC5 -. "«include»" .-> UC7
-    UC5 -. "«extend»" .-> UC8
-    UC5 -. "«extend»" .-> UC9
-    UC5 -. "«extend»" .-> UC10
-    UC5 -. "«extend»" .-> UC11
-    UC12 -. "«include»" .-> UC13
-        </pre>
+          <!-- actor: Supabase -->
+          <circle cx="1190" cy="316" r="13" class="uml-actor-head"/>
+          <path class="uml-actor-line"
+                d="M1190,329 L1190,362 M1170,341 L1210,341 M1190,362 L1177,386 M1190,362 L1203,386"/>
+          <text x="1190" y="408" text-anchor="middle" class="uml-actor-name">Supabase Platform</text>
+          <text x="1190" y="424" text-anchor="middle" class="uml-actor-sub">(Auth + Postgres)</text>
+
+          <!-- associations: Player to each use case -->
+          <path class="uml-assoc" d="M162,350 L555,125"/>
+          <path class="uml-assoc" d="M162,350 L555,215"/>
+          <path class="uml-assoc" d="M162,350 L555,305"/>
+          <path class="uml-assoc" d="M162,350 L555,395"/>
+          <path class="uml-assoc" d="M162,350 L555,520"/>
+          <path class="uml-assoc" d="M162,350 L555,730"/>
+
+          <!-- associations: Supabase to each use case -->
+          <path class="uml-assoc" d="M1168,350 L775,125"/>
+          <path class="uml-assoc" d="M1168,350 L775,215"/>
+          <path class="uml-assoc" d="M1168,350 L775,305"/>
+          <path class="uml-assoc" d="M1168,350 L775,395"/>
+          <path class="uml-assoc" d="M1168,350 L775,625"/>
+
+          <!-- association: Google to Sign In -->
+          <path class="uml-assoc" d="M1168,140 L775,125"/>
+
+          <!-- include / extend dependencies from Fight the Adaptive Boss -->
+          <path class="uml-dep" d="M665,761 L335,845" marker-end="url(#uc-arrow)"/>
+          <path class="uml-dep" d="M665,761 L467,845" marker-end="url(#uc-arrow)"/>
+          <path class="uml-dep" d="M665,761 L599,845" marker-end="url(#uc-arrow)"/>
+          <path class="uml-dep" d="M665,761 L731,845" marker-end="url(#uc-arrow)"/>
+          <path class="uml-dep" d="M665,761 L863,845" marker-end="url(#uc-arrow)"/>
+          <path class="uml-dep" d="M665,761 L995,845" marker-end="url(#uc-arrow)"/>
+
+          <!-- include dependency: View Fight Outcome to Resolve Attempt -->
+          <path class="uml-dep" d="M665,551 L665,592" marker-end="url(#uc-arrow)"/>
+
+          <!-- use cases: primary column -->
+          <ellipse cx="665" cy="125" rx="110" ry="31" class="uml-usecase"/>
+          <text x="665" y="121" text-anchor="middle">Sign In</text>
+          <text x="665" y="139" text-anchor="middle">(with Google)</text>
+
+          <ellipse cx="665" cy="215" rx="110" ry="31" class="uml-usecase"/>
+          <text x="665" y="220" text-anchor="middle">Sign Out</text>
+
+          <ellipse cx="665" cy="305" rx="110" ry="31" class="uml-usecase"/>
+          <text x="665" y="310" text-anchor="middle">Resume Progress</text>
+
+          <ellipse cx="665" cy="395" rx="110" ry="31" class="uml-usecase"/>
+          <text x="665" y="400" text-anchor="middle">Spend Runes on Stats</text>
+
+          <ellipse cx="665" cy="520" rx="110" ry="31" class="uml-usecase"/>
+          <text x="665" y="525" text-anchor="middle">View Fight Outcome</text>
+
+          <ellipse cx="665" cy="625" rx="110" ry="31" class="uml-usecase"/>
+          <text x="665" y="621" text-anchor="middle">Resolve Attempt</text>
+          <text x="665" y="639" text-anchor="middle" class="uml-sub">(persist result, grant runes)</text>
+
+          <ellipse cx="665" cy="730" rx="110" ry="31" class="uml-usecase"/>
+          <text x="665" y="726" text-anchor="middle">Fight the</text>
+          <text x="665" y="744" text-anchor="middle">Adaptive Boss</text>
+
+          <!-- use cases: sub-behaviours -->
+          <ellipse cx="335" cy="885" rx="62" ry="40" class="uml-usecase"/>
+          <text x="335" y="890" text-anchor="middle" font-size="12">Move</text>
+
+          <ellipse cx="467" cy="885" rx="62" ry="40" class="uml-usecase"/>
+          <text x="467" y="881" text-anchor="middle" font-size="12">Attack</text>
+          <text x="467" y="897" text-anchor="middle" font-size="11">(Light / Heavy)</text>
+
+          <ellipse cx="599" cy="885" rx="62" ry="40" class="uml-usecase"/>
+          <text x="599" y="890" text-anchor="middle" font-size="12">Dodge</text>
+
+          <ellipse cx="731" cy="885" rx="62" ry="40" class="uml-usecase"/>
+          <text x="731" y="890" text-anchor="middle" font-size="12">Block</text>
+
+          <ellipse cx="863" cy="885" rx="62" ry="40" class="uml-usecase"/>
+          <text x="863" y="890" text-anchor="middle" font-size="11.5">Cast Sorcery</text>
+
+          <ellipse cx="995" cy="885" rx="62" ry="40" class="uml-usecase"/>
+          <text x="995" y="881" text-anchor="middle" font-size="12">Land a</text>
+          <text x="995" y="897" text-anchor="middle" font-size="12">Critical Hit</text>
+
+          <!-- dependency stereotypes -->
+          <rect x="387" y="813" width="62" height="16" class="uml-label-bg"/>
+          <text x="418" y="825" text-anchor="middle" class="uml-stereotype">«include»</text>
+
+          <rect x="485" y="813" width="62" height="16" class="uml-label-bg"/>
+          <text x="516" y="825" text-anchor="middle" class="uml-stereotype">«include»</text>
+
+          <rect x="585" y="813" width="62" height="16" class="uml-label-bg"/>
+          <text x="616" y="825" text-anchor="middle" class="uml-stereotype">«extend»</text>
+
+          <rect x="684" y="813" width="62" height="16" class="uml-label-bg"/>
+          <text x="715" y="825" text-anchor="middle" class="uml-stereotype">«extend»</text>
+
+          <rect x="783" y="813" width="62" height="16" class="uml-label-bg"/>
+          <text x="814" y="825" text-anchor="middle" class="uml-stereotype">«extend»</text>
+
+          <rect x="882" y="813" width="62" height="16" class="uml-label-bg"/>
+          <text x="913" y="825" text-anchor="middle" class="uml-stereotype">«extend»</text>
+
+          <rect x="674" y="563" width="62" height="16" class="uml-label-bg"/>
+          <text x="705" y="575" text-anchor="middle" class="uml-stereotype">«include»</text>
+        </svg>
       </div>
       <div class="notes">
         <div class="note gold">
@@ -664,38 +847,89 @@ sequenceDiagram
       <p class="fig-desc">
         Shown as a communication diagram rather than a sequence diagram
         because the story is about which object owns which piece of
-        validation, the RPC versus the row it locks, and a hub-and-spoke
-        layout foregrounds that better than a timeline. Mermaid has no
-        native communication-diagram type, so this is built with numbered,
-        labeled flowchart edges.
+        validation, the RPC versus the row it locks. Objects are linked in
+        a chain, and the twelve messages are numbered in execution order
+        along the link each one travels.
       </p>
       <div class="chips">
         <span class="chip">src/components/CharacterSheet.tsx (confirmSpend)</span>
         <span class="chip">…spend_stat_point.sql</span>
       </div>
       <div class="diagram-frame">
-        <pre class="mermaid">
-flowchart TD
-    Player(["Player"])
-    Sheet[":CharacterSheet"]
-    Client[":SupabaseClient"]
-    PostgREST[":PostgREST"]
-    RPC[":spend_stat_point()&lt;br/&gt;«SECURITY DEFINER»"]
-    Table[("player_stats&lt;br/&gt;(row, locked)")]
+        <svg class="uml-svg" viewBox="0 70 1340 450" role="img"
+             aria-label="Communication diagram. Six objects linked in a chain, with twelve numbered messages showing the spend_stat_point call and the row lock it takes.">
+          <defs>
+            <marker id="msg-arrow" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M0,0 L10,5 L0,10 z" class="uml-msg-arrowhead"/>
+            </marker>
+          </defs>
 
-    Player -- "1: click '+1'&lt;br/&gt;(already armed)" --> Sheet
-    Sheet -- "2: rpc('spend_stat_point',&lt;br/&gt;{p_stat})" --> Client
-    Client -- "3: HTTPS request + JWT" --> PostgREST
-    PostgREST -- "4: invoke as&lt;br/&gt;authenticated role" --> RPC
-    RPC -- "5: SELECT ... FOR UPDATE" --> Table
-    Table -- "6: locked row value" --> RPC
-    RPC -- "7: cost = 100+25×(current-10),&lt;br/&gt;UPDATE ... WHERE runes>=cost&lt;br/&gt;AND current<60" --> Table
-    Table -- "8: RETURNING new row,&lt;br/&gt;or 0 rows affected" --> RPC
-    RPC -- "9: new stats/runes,&lt;br/&gt;or raise exception" --> PostgREST
-    PostgREST -- "10: JSON response" --> Client
-    Client -- "11: {data, error}" --> Sheet
-    Sheet -- "12: re-render&lt;br/&gt;updated stat sheet" --> Player
-        </pre>
+          <!-- links between objects -->
+          <path class="uml-assoc" d="M220,150 L420,150"/>
+          <path class="uml-assoc" d="M640,150 L830,150"/>
+          <path class="uml-assoc" d="M930,182 L930,398"/>
+          <path class="uml-assoc" d="M830,430 L640,430"/>
+          <path class="uml-assoc" d="M420,430 L195,430"/>
+
+          <!-- actor: Player -->
+          <circle cx="200" cy="116" r="13" class="uml-actor-head"/>
+          <path class="uml-actor-line"
+                d="M200,129 L200,162 M180,141 L220,141 M200,162 L187,186 M200,162 L213,186"/>
+          <text x="200" y="204" text-anchor="middle" class="uml-actor-name">Player</text>
+
+          <!-- objects -->
+          <rect x="420" y="118" width="220" height="64" class="uml-object"/>
+          <text x="530" y="155" text-anchor="middle" class="uml-objname">:CharacterSheet</text>
+
+          <rect x="830" y="118" width="200" height="64" class="uml-object"/>
+          <text x="930" y="155" text-anchor="middle" class="uml-objname">:SupabaseClient</text>
+
+          <rect x="830" y="398" width="200" height="64" class="uml-object"/>
+          <text x="930" y="435" text-anchor="middle" class="uml-objname">:PostgREST</text>
+
+          <rect x="420" y="396" width="220" height="68" class="uml-object"/>
+          <text x="530" y="424" text-anchor="middle" class="uml-objname">:spend_stat_point()</text>
+          <text x="530" y="444" text-anchor="middle" class="uml-stereotype">«SECURITY DEFINER»</text>
+
+          <rect x="15" y="396" width="180" height="68" class="uml-object"/>
+          <text x="105" y="424" text-anchor="middle" class="uml-objname">:player_stats</text>
+          <text x="105" y="444" text-anchor="middle" class="uml-stereotype">(row, locked)</text>
+
+          <!-- messages on link Player to CharacterSheet -->
+          <path class="uml-assoc" d="M285,136 L355,136" marker-end="url(#msg-arrow)"/>
+          <text x="320" y="128" text-anchor="middle" class="uml-msg"><tspan class="uml-msg-num">1:</tspan> click '+1'</text>
+          <path class="uml-assoc" d="M355,164 L285,164" marker-end="url(#msg-arrow)"/>
+          <text x="320" y="182" text-anchor="middle" class="uml-msg"><tspan class="uml-msg-num">12:</tspan> re-render stat sheet</text>
+
+          <!-- messages on link CharacterSheet to SupabaseClient -->
+          <path class="uml-assoc" d="M700,136 L770,136" marker-end="url(#msg-arrow)"/>
+          <text x="735" y="128" text-anchor="middle" class="uml-msg"><tspan class="uml-msg-num">2:</tspan> rpc('spend_stat_point')</text>
+          <path class="uml-assoc" d="M770,164 L700,164" marker-end="url(#msg-arrow)"/>
+          <text x="735" y="182" text-anchor="middle" class="uml-msg"><tspan class="uml-msg-num">11:</tspan> {data, error}</text>
+
+          <!-- messages on link SupabaseClient to PostgREST -->
+          <path class="uml-assoc" d="M916,255 L916,325" marker-end="url(#msg-arrow)"/>
+          <text x="908" y="294" text-anchor="end" class="uml-msg"><tspan class="uml-msg-num">3:</tspan> HTTPS request + JWT</text>
+          <path class="uml-assoc" d="M944,325 L944,255" marker-end="url(#msg-arrow)"/>
+          <text x="952" y="294" text-anchor="start" class="uml-msg"><tspan class="uml-msg-num">10:</tspan> JSON response</text>
+
+          <!-- messages on link PostgREST to spend_stat_point -->
+          <path class="uml-assoc" d="M770,416 L700,416" marker-end="url(#msg-arrow)"/>
+          <text x="735" y="408" text-anchor="middle" class="uml-msg"><tspan class="uml-msg-num">4:</tspan> invoke as authenticated</text>
+          <path class="uml-assoc" d="M700,444 L770,444" marker-end="url(#msg-arrow)"/>
+          <text x="735" y="462" text-anchor="middle" class="uml-msg"><tspan class="uml-msg-num">9:</tspan> new stats/runes or error</text>
+
+          <!-- messages on link spend_stat_point to player_stats -->
+          <path class="uml-assoc" d="M342,392 L272,392" marker-end="url(#msg-arrow)"/>
+          <text x="307" y="384" text-anchor="middle" class="uml-msg"><tspan class="uml-msg-num">7:</tspan> UPDATE ... WHERE runes ≥ cost</text>
+          <path class="uml-assoc" d="M342,416 L272,416" marker-end="url(#msg-arrow)"/>
+          <text x="307" y="408" text-anchor="middle" class="uml-msg"><tspan class="uml-msg-num">5:</tspan> SELECT ... FOR UPDATE</text>
+          <path class="uml-assoc" d="M272,444 L342,444" marker-end="url(#msg-arrow)"/>
+          <text x="307" y="462" text-anchor="middle" class="uml-msg"><tspan class="uml-msg-num">6:</tspan> locked row value</text>
+          <path class="uml-assoc" d="M272,468 L342,468" marker-end="url(#msg-arrow)"/>
+          <text x="307" y="486" text-anchor="middle" class="uml-msg"><tspan class="uml-msg-num">8:</tspan> RETURNING new row</text>
+        </svg>
       </div>
       <div class="notes">
         <div class="note gold">
@@ -711,14 +945,15 @@ flowchart TD
 
     <!-- FIGURE 6 — ACTIVITY -->
     <section class="figure" id="fig-6">
-      <p class="fig-eyebrow">Figure 06 · Activity Diagram</p>
-      <h2 class="fig-title">Boss L2→L3 Decision Process (one tick)</h2>
+      <p class="fig-eyebrow">Figure 06a · Activity Diagram, Tactic Selection</p>
+      <h2 class="fig-title">Boss L2 Tactic Machine (one tick)</h2>
       <p class="fig-desc">
         This diagram was chosen because the boss AI's decision-making is
         best understood as a workflow, and nothing else in the system has
         comparable decision density. L2 runs <i>every</i> tick
-        unconditionally, and <code>RECOVER</code> skips L3 entirely rather
-        than biasing it.
+        unconditionally, before the stagger and posture gates, so intent
+        can shift mid-swing. The action-selection half of the same tick
+        continues in Figure 06b.
       </p>
       <div class="chips">
         <span class="chip">bossCombat.ts (step)</span>
@@ -728,62 +963,90 @@ flowchart TD
       <div class="diagram-frame">
         <pre class="mermaid">
 flowchart TD
-    Start(("●")) --> Decay[Passive per-tick decay:&lt;br/&gt;poise, posture, selection cooldowns]
+    Start(("●")) --> Decay("Passive per-tick decay of&lt;br/&gt;poise, posture, selection cooldowns")
     Decay --> L2Start
 
-    subgraph L2["L2 Tactic Machine (runs every tick, unconditionally)"]
+    subgraph L2["L2 Tactic Machine, runs every tick unconditionally"]
         direction TB
-        L2Start{Punishable opening&lt;br/&gt;AND cooldown == 0&lt;br/&gt;AND tactic != PUNISH?}
-        L2Start -- yes --> SetPunish[Set tactic = PUNISH&lt;br/&gt;reset F5 cooldown]
-        L2Start -- no --> HoldCheck{Hold timer&lt;br/&gt;expired?}
-        HoldCheck -- no --> KeepTactic[Keep current tactic]
-        HoldCheck -- yes --> Softmax["Softmax pick over 5 tactics&lt;br/&gt;{probabilistic, weights =&lt;br/&gt;BASE_SCORE × behaviorMod}"]
-        Softmax --> NewTactic[New tactic + new hold duration]
+        L2Start{"Punishable opening&lt;br/&gt;AND cooldown == 0&lt;br/&gt;AND tactic != PUNISH?"}
+        L2Start -- yes --> SetPunish("Set tactic = PUNISH&lt;br/&gt;reset F5 cooldown")
+        L2Start -- no --> HoldCheck{"Hold timer expired?"}
+        HoldCheck -- no --> KeepTactic("Keep current tactic")
+        HoldCheck -- yes --> Softmax("Softmax pick over 5 tactics&lt;br/&gt;probabilistic, weights =&lt;br/&gt;BASE_SCORE × behaviorMod")
+        Softmax --> NewTactic("New tactic + new hold duration")
     end
 
     SetPunish --> Gate1
     KeepTactic --> Gate1
     NewTactic --> Gate1
 
-    Gate1{staggerTicks > 0?}
-    Gate1 -- yes --> WaitStagger[Decrement stagger, no action]
-    Gate1 -- no --> Gate2{Posture critical&lt;br/&gt;window open?}
-    Gate2 -- yes --> Frozen[Collapsed, frozen]
-    Gate2 -- no --> Gate3{action == null&lt;br/&gt;boss idle?}
-
-    subgraph L3["L3 Action Selection"]
-        direction TB
-        Gate3 -- no, mid-action --> AdvancePhase[Advance startup→active→recovery]
-        AdvancePhase --> RecoveryDone{Recovery phase&lt;br/&gt;just finished?}
-        RecoveryDone -- no --> EndTick1[end tick]
-        RecoveryDone -- yes --> ComboCheck{Combo field AND&lt;br/&gt;chainDepth < maxChain?}
-
-        ComboCheck -- yes --> ComboFilter[Filter combo.next links:&lt;br/&gt;range, cooldown, F8, condition]
-        ComboFilter --> ComboPick["Weighted pick + unclaimed&lt;br/&gt;'end sequence' mass&lt;br/&gt;{probabilistic}"]
-        ComboPick --> ComboResult{Link picked?}
-        ComboResult -- yes --> StartMove1[startMove, continue combo]
-        ComboResult -- no --> SeqEnd1[sequence-end, start F2 gap]
-
-        ComboCheck -- no --> SeqEnd2[sequence-end, start F2 gap]
-
-        Gate3 -- yes, idle --> RecoverCheck{tactic == RECOVER?}
-        RecoverCheck -- yes --> ApproachOnly["approach() only,&lt;br/&gt;L3 skipped entirely"]
-        RecoverCheck -- no --> GapCheck{gapTicksRemaining > 0?}
-        GapCheck -- yes --> ApproachOnly2[no-action: approach]
-        GapCheck -- no --> EligFilter[Filter table: range, cooldown, F8]
-        EligFilter --> EligEmpty{Eligible set empty?}
-        EligEmpty -- yes --> ApproachOnly3[no-action: approach]
-        EligEmpty -- no --> TacticMatch{Any move tags match&lt;br/&gt;current tactic?}
-        TacticMatch -- yes --> PoolMatched[pool = tactic-matched subset]
-        TacticMatch -- no --> PoolFallback["pool = full eligible set&lt;br/&gt;(documented fallback)"]
-        PoolMatched --> WeightedPick["Weighted pick over pool&lt;br/&gt;{probabilistic}"]
-        PoolFallback --> WeightedPick
-        WeightedPick --> StartMove2[startMove, fresh sequence]
-    end
+    Gate1{"staggerTicks > 0?"}
+    Gate1 -- yes --> WaitStagger("Decrement stagger, no action")
+    Gate1 -- no --> Gate2{"Posture critical window open?"}
+    Gate2 -- yes --> Frozen("Collapsed, frozen")
+    Gate2 -- no --> Gate3{"action == null, boss idle?"}
+    Gate3 --> L3Ref["Continue to L3 Action Selection&lt;br/&gt;see Figure 06b"]
 
     WaitStagger --> End(("●"))
     Frozen --> End
-    EndTick1 --> End
+        </pre>
+      </div>
+      <div class="notes">
+        <div class="note blood">
+          <div class="bar"></div>
+          <div>Standard UML decision nodes carry mutually-exclusive boolean guards. The softmax pick is <i>probabilistic</i>, since nothing about system state alone determines the branch, only a distribution does. It is labeled <i>probabilistic</i> rather than drawn like an ordinary <code>if</code>.</div>
+        </div>
+        <div class="note gold">
+          <div class="bar"></div>
+          <div>The tactic machine sits <i>before</i> the stagger and posture gates, so the boss can change intent while it is mid-swing or staggered. Only the resulting action waits on the animation.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FIGURE 6b — ACTIVITY, ACTION SELECTION -->
+    <section class="figure" id="fig-6b">
+      <p class="fig-eyebrow">Figure 06b · Activity Diagram, Action Selection</p>
+      <h2 class="fig-title">Boss L3 Action Selection (one tick)</h2>
+      <p class="fig-desc">
+        The second half of the same tick, entered from the idle gate at the
+        end of Figure 06a. Split into its own figure because one combined
+        diagram runs several pages tall and stops being readable.
+      </p>
+      <div class="chips">
+        <span class="chip">actionSelection.ts (selectTopLevel, selectComboBranch)</span>
+        <span class="chip">bossCombat.ts (step)</span>
+      </div>
+      <div class="diagram-frame">
+        <pre class="mermaid">
+flowchart TD
+    Entry(("●")) --> Gate3{"action == null, boss idle?"}
+
+    Gate3 -- no, mid-action --> AdvancePhase("Advance startup→active→recovery")
+    AdvancePhase --> RecoveryDone{"Recovery phase just finished?"}
+    RecoveryDone -- no --> EndTick1("End tick")
+    RecoveryDone -- yes --> ComboCheck{"Combo field AND&lt;br/&gt;chainDepth < maxChain?"}
+    ComboCheck -- yes --> ComboFilter("Filter combo.next links by&lt;br/&gt;range, cooldown, F8, condition")
+    ComboFilter --> ComboPick("Weighted pick + unclaimed&lt;br/&gt;'end sequence' mass, probabilistic")
+    ComboPick --> ComboResult{"Link picked?"}
+    ComboResult -- yes --> StartMove1("startMove, continue combo")
+    ComboResult -- no --> SeqEnd1("Sequence-end, start F2 gap")
+    ComboCheck -- no --> SeqEnd2("Sequence-end, start F2 gap")
+
+    Gate3 -- yes, idle --> RecoverCheck{"tactic == RECOVER?"}
+    RecoverCheck -- yes --> ApproachOnly("approach only,&lt;br/&gt;L3 skipped entirely")
+    RecoverCheck -- no --> GapCheck{"gapTicksRemaining > 0?"}
+    GapCheck -- yes --> ApproachOnly2("No action, approach")
+    GapCheck -- no --> EligFilter("Filter table by range, cooldown, F8")
+    EligFilter --> EligEmpty{"Eligible set empty?"}
+    EligEmpty -- yes --> ApproachOnly3("No action, approach")
+    EligEmpty -- no --> TacticMatch{"Any move tags match&lt;br/&gt;current tactic?"}
+    TacticMatch -- yes --> PoolMatched("pool = tactic-matched subset")
+    TacticMatch -- no --> PoolFallback("pool = full eligible set,&lt;br/&gt;documented fallback")
+    PoolMatched --> WeightedPick("Weighted pick over pool, probabilistic")
+    PoolFallback --> WeightedPick
+    WeightedPick --> StartMove2("startMove, fresh sequence")
+
+    EndTick1 --> End(("●"))
     StartMove1 --> End
     SeqEnd1 --> End
     SeqEnd2 --> End
@@ -796,7 +1059,11 @@ flowchart TD
       <div class="notes">
         <div class="note blood">
           <div class="bar"></div>
-          <div>Standard UML decision nodes carry mutually-exclusive boolean guards. The two weighted picks here are <i>probabilistic</i>, since nothing about system state alone determines the branch, only a distribution does. Both are labeled <code>{probabilistic}</code> rather than drawn like an ordinary <code>if</code>.</div>
+          <div>When the active tactic is <code>RECOVER</code>, selection is skipped outright rather than run with a biased weighting. This is the one path that guarantees a smothered player a tick of relief.</div>
+        </div>
+        <div class="note steel">
+          <div class="bar"></div>
+          <div>If no eligible move carries a tag matching the current tactic, the pool falls back to the full eligible set rather than stalling. The fallback is a documented rule, not an accident.</div>
         </div>
       </div>
     </section>
