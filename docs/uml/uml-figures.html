@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rise, Tarnished — UML Documentation</title>
+<style>
+  :root {
+    --bg: #efe7d3;
+    --bg-raised: #e3dac3;
+    --ink: #221d17;
+    --ink-dim: #52493c;
+    --ink-faint: #8a7f6c;
+    --line: #cdc2a4;
+    --gold: #9a730c;
+    --blood: #6b2a3a;
+    --steel: #33488f;
+    --card-bg: #f7f2e4;
+    --code-bg: #e6dcc2;
+    --shadow: 0 1px 2px rgba(34, 29, 23, 0.08);
+    --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+    --sans:
+      -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --mono:
+      ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
+  }
+  :root[data-theme='dark'] {
+    --bg: #15120f;
+    --bg-raised: #1c1812;
+    --ink: #d9cda6;
+    --ink-dim: #b3a889;
+    --ink-faint: #7d735c;
+    --line: #3a3327;
+    --gold: #d4a017;
+    --blood: #d0808f;
+    --steel: #8ea0e8;
+    --card-bg: #1a1611;
+    --code-bg: #211c15;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      --bg: #15120f;
+      --bg-raised: #1c1812;
+      --ink: #d9cda6;
+      --ink-dim: #b3a889;
+      --ink-faint: #7d735c;
+      --line: #3a3327;
+      --gold: #d4a017;
+      --blood: #d0808f;
+      --steel: #8ea0e8;
+      --card-bg: #1a1611;
+      --code-bg: #211c15;
+      --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    }
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+  }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  a {
+    color: var(--gold);
+  }
+
+  .shell {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    max-width: 1240px;
+    margin: 0 auto;
+    gap: 0;
+  }
+  @media (max-width: 880px) {
+    .shell {
+      grid-template-columns: 1fr;
+    }
+    .rail {
+      position: static !important;
+      height: auto !important;
+      border-right: none !important;
+      border-bottom: 1px solid var(--line);
+    }
+  }
+
+  .rail {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    padding: 2rem 1.25rem 2rem 1.5rem;
+    border-right: 1px solid var(--line);
+  }
+  .rail-title {
+    font-family: var(--serif);
+    font-size: 1.05rem;
+    line-height: 1.3;
+    margin: 0 0 0.15rem;
+  }
+  .rail-sub {
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 1.6rem;
+  }
+  .rail nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+  .rail nav a {
+    text-decoration: none;
+    color: var(--ink-dim);
+    font-size: 0.86rem;
+    padding: 0.4rem 0.5rem;
+    border-radius: 4px;
+    display: flex;
+    gap: 0.55rem;
+    align-items: baseline;
+    transition: background 0.15s ease;
+  }
+  .rail nav a:hover {
+    background: var(--bg-raised);
+  }
+  .rail nav a.active {
+    color: var(--ink);
+    background: var(--bg-raised);
+  }
+  .rail nav a.active .num {
+    color: var(--gold);
+  }
+  .rail nav a .num {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+    min-width: 1.4em;
+  }
+  .rail-group-label {
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 1.1rem 0 0.3rem 0.5rem;
+  }
+  .rail-group-label:first-of-type {
+    margin-top: 0;
+  }
+
+  main {
+    min-width: 0;
+    padding: 3.2rem clamp(1.25rem, 4vw, 3.5rem) 6rem;
+  }
+
+  header.hero {
+    margin-bottom: 3rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin: 0 0 0.7rem;
+  }
+  h1 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(1.9rem, 3.4vw, 2.6rem);
+    line-height: 1.15;
+    margin: 0 0 0.75rem;
+    text-wrap: balance;
+  }
+  header.hero p {
+    max-width: 62ch;
+    color: var(--ink-dim);
+    font-size: 1.02rem;
+    margin: 0;
+  }
+
+  .callout {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.7rem;
+    align-items: start;
+    background: var(--bg-raised);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 1rem 1.15rem;
+    margin: 1.4rem 0;
+    font-size: 0.92rem;
+    color: var(--ink-dim);
+  }
+  .callout .tag {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.15rem 0.5rem;
+    border-radius: 3px;
+    white-space: nowrap;
+    height: fit-content;
+  }
+  .callout.corrected .tag {
+    background: color-mix(in srgb, var(--blood) 22%, transparent);
+    color: var(--blood);
+  }
+  .callout.fact .tag {
+    background: color-mix(in srgb, var(--gold) 20%, transparent);
+    color: var(--gold);
+  }
+  .callout ul {
+    margin: 0;
+    padding-left: 1.1rem;
+  }
+  .callout li {
+    margin-bottom: 0.4rem;
+  }
+  .callout li:last-child {
+    margin-bottom: 0;
+  }
+
+  section.figure {
+    margin: 4.2rem 0;
+    scroll-margin-top: 1.5rem;
+  }
+  section.figure:first-of-type {
+    margin-top: 0;
+  }
+  .fig-eyebrow {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--steel);
+    margin: 0 0 0.5rem;
+  }
+  .fig-title {
+    font-family: var(--serif);
+    font-size: 1.55rem;
+    font-weight: 400;
+    margin: 0 0 0.55rem;
+    text-wrap: balance;
+  }
+  .fig-desc {
+    color: var(--ink-dim);
+    max-width: 68ch;
+    margin: 0 0 1rem;
+    font-size: 0.96rem;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 1.4rem;
+  }
+  .chip {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    background: var(--code-bg);
+    color: var(--ink-dim);
+    padding: 0.22rem 0.55rem;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+  }
+
+  .diagram-frame {
+    background: var(--card-bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+    padding: 1.5rem;
+    overflow-x: auto;
+  }
+  .diagram-frame pre.mermaid {
+    margin: 0;
+    display: flex;
+    justify-content: center;
+  }
+
+  .notes {
+    margin-top: 1.3rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+  .note {
+    display: grid;
+    grid-template-columns: 3px 1fr;
+    gap: 0.85rem;
+    font-size: 0.9rem;
+    color: var(--ink-dim);
+  }
+  .note .bar {
+    background: var(--line);
+    border-radius: 2px;
+  }
+  .note.gold .bar {
+    background: var(--gold);
+  }
+  .note.blood .bar {
+    background: var(--blood);
+  }
+  .note.steel .bar {
+    background: var(--steel);
+  }
+  .note b {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .note code {
+    font-family: var(--mono);
+    font-size: 0.86em;
+    background: var(--code-bg);
+    padding: 0.08rem 0.35rem;
+    border-radius: 3px;
+  }
+
+  table.uc-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+    margin: 1rem 0;
+  }
+  table.uc-table th,
+  table.uc-table td {
+    text-align: left;
+    padding: 0.55rem 0.8rem;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  table.uc-table th {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    width: 12rem;
+  }
+
+  footer {
+    margin-top: 4rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--line);
+    color: var(--ink-faint);
+    font-size: 0.82rem;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .rail nav a {
+      transition: background 0.15s ease;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <aside class="rail">
+    <p class="rail-title">Rise, Tarnished</p>
+    <p class="rail-sub">UML Documentation</p>
+    <nav id="toc">
+      <a href="#overview"><span class="num">·</span>Overview</a>
+      <p class="rail-group-label">Behavioral</p>
+      <a href="#fig-1"><span class="num">01</span>Use Case Diagram</a>
+      <a href="#fig-2"><span class="num">02</span>Use Case Description</a>
+      <a href="#fig-3"><span class="num">03</span>Sequence — Sign In</a>
+      <a href="#fig-4"><span class="num">04</span>Sequence — Fight</a>
+      <a href="#fig-5"><span class="num">05</span>Communication — Spend Runes</a>
+      <a href="#fig-6"><span class="num">06</span>Activity — Boss Decision</a>
+      <p class="rail-group-label">Structural</p>
+      <a href="#fig-7"><span class="num">07a</span>Class — Domain</a>
+      <a href="#fig-7b"><span class="num">07b</span>Class — Persistence</a>
+    </nav>
+  </aside>
+
+  <main>
+    <header class="hero" id="overview">
+      <p class="eyebrow">Software Engineering — UML Deliverables</p>
+      <h1>Seven diagrams, traced to the shipped codebase</h1>
+      <p>
+        Every figure below was checked against the actual source of
+        <b>Rise, Tarnished</b> — not drawn from a template and relabeled.
+        The plan this was built from
+        (<code style="font-family: var(--mono)">docs/uml-plan.md</code>)
+        went through two rigor passes and caught six real modeling errors
+        before a single diagram was drawn; three more were caught while
+        drawing. Every correction is left visible below rather than
+        silently fixed, because the corrections are evidence of rigor, not
+        a flaw to hide.
+      </p>
+    </header>
+
+    <div class="callout corrected">
+      <span class="tag">Corrected</span>
+      <ul>
+        <li>
+          <b>Include vs. extend.</b> Dodge, Block, and Cast Sorcery were
+          first modeled as <code>«include»</code> of Fight the Adaptive
+          Boss. All three are player choices, not guaranteed steps — moved
+          to <code>«extend»</code>. Move and Attack stayed
+          <code>«include»</code> because winning is provably impossible
+          without them.
+        </li>
+        <li>
+          <b>A fabricated relationship.</b> The first class-diagram draft
+          claimed <code>BossCombatState</code> depends on
+          <code>PlayerBuild</code>. Checked <code>BossStepContext</code>
+          directly — it has no <code>build</code> field at all. Dropped
+          entirely rather than patched.
+        </li>
+        <li>
+          <b>A backwards, invalid dependency.</b> <code>Boss ↔
+          AttemptLog</code> was drawn with the arrow pointing the wrong way
+          <i>and</i> carrying an association-style multiplicity on a
+          dependency arrow, which UML doesn't permit. Rebuilt as a
+          correctly-directed, stereotyped association instead.
+        </li>
+      </ul>
+    </div>
+
+    <div class="callout fact">
+      <span class="tag">Modeling call</span>
+      <ul>
+        <li>
+          The system is a <b>functional core / imperative shell</b>
+          (ADR-0001) — state lives in plain interfaces, transformed by pure
+          functions, not classes with instance methods. The class diagram
+          models each state interface as a class with its real fields and
+          its real pure functions as operations, rather than inventing
+          OOP methods that don't exist in the source.
+        </li>
+        <li>
+          Mermaid has no native use-case or communication diagram syntax.
+          Both are built with <code>flowchart</code> — stadium shapes
+          standing in for UML ovals, and numbered edge labels standing in
+          for a communication diagram's message sequence. Noted at each
+          figure, not hidden.
+        </li>
+      </ul>
+    </div>
+
+    <!-- FIGURE 1 — USE CASE DIAGRAM -->
+    <section class="figure" id="fig-1">
+      <p class="fig-eyebrow">Figure 01 · Use Case Diagram</p>
+      <h2 class="fig-title">The shipped MVP loop</h2>
+      <p class="fig-desc">
+        Player, Google, and Supabase as actors; only the loop that actually
+        exists — sign in → resume → fight → outcome → resolve/spend. The
+        unimplemented LLM recap (#13) and bot-harness (#14) are left out
+        rather than diagrammed as if shipped.
+      </p>
+      <div class="chips">
+        <span class="chip">src/app/page.tsx</span>
+        <span class="chip">src/app/play/page.tsx</span>
+        <span class="chip">src/app/auth/callback/route.ts</span>
+        <span class="chip">src/components/CharacterSheet.tsx</span>
+        <span class="chip">src/game/scenes/CombatScene.ts</span>
+      </div>
+      <div class="diagram-frame">
+        <pre class="mermaid">
+flowchart LR
+    Player(["🧑 Player"])
+    Google(["🌐 Google&lt;br/&gt;(OAuth Provider)"])
+    Supabase(["🗄️ Supabase Platform&lt;br/&gt;(Auth + Postgres)"])
+
+    subgraph SYS["System Boundary — Rise, Tarnished"]
+        direction TB
+        UC1(["Sign In&lt;br/&gt;(with Google)"])
+        UC2(["Sign Out"])
+        UC3(["Resume Progress"])
+        UC4(["Spend Runes&lt;br/&gt;on Stats"])
+        UC5(["Fight the&lt;br/&gt;Adaptive Boss"])
+        UC6(["Move"])
+        UC7(["Attack&lt;br/&gt;(Light / Heavy)"])
+        UC8(["Dodge"])
+        UC9(["Block"])
+        UC10(["Cast Sorcery"])
+        UC11(["Land a&lt;br/&gt;Critical Hit"])
+        UC12(["View Fight&lt;br/&gt;Outcome"])
+        UC13(["Resolve Attempt&lt;br/&gt;(persist result,&lt;br/&gt;grant runes)"])
+    end
+
+    Player --- UC1
+    Player --- UC2
+    Player --- UC3
+    Player --- UC4
+    Player --- UC5
+    Player --- UC12
+
+    Google --- UC1
+    Supabase --- UC1
+    Supabase --- UC2
+    Supabase --- UC3
+    Supabase --- UC4
+    Supabase --- UC13
+
+    UC5 -. "«include»" .-> UC6
+    UC5 -. "«include»" .-> UC7
+    UC5 -. "«extend»" .-> UC8
+    UC5 -. "«extend»" .-> UC9
+    UC5 -. "«extend»" .-> UC10
+    UC5 -. "«extend»" .-> UC11
+    UC12 -. "«include»" .-> UC13
+        </pre>
+      </div>
+      <div class="notes">
+        <div class="note gold">
+          <div class="bar"></div>
+          <div>
+            <b>The strict include/extend test:</b> a sub-behavior is
+            <code>«include»</code>d only if it's performed, unconditionally,
+            at a defined point in <i>every</i> completed instance of the
+            base use case — not merely whether it <i>can</i> happen.
+          </div>
+        </div>
+        <div class="note steel">
+          <div class="bar"></div>
+          <div>
+            Supabase is modeled as a secondary actor, not inside the
+            boundary — the use cases describe player goals, and Supabase is
+            a service the system calls out to, never something the player
+            touches directly.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FIGURE 2 — USE CASE DESCRIPTION -->
+    <section class="figure" id="fig-2">
+      <p class="fig-eyebrow">Figure 02 · Detailed Use Case Description</p>
+      <h2 class="fig-title">UC-05 — Fight the Adaptive Boss</h2>
+      <p class="fig-desc">
+        Chosen as the one detailed description because it's the only use
+        case with real alternate flows, a real failure path, and real
+        business rules — everything else is infrastructure or a single RPC
+        call.
+      </p>
+      <div class="chips">
+        <span class="chip">src/game/scenes/CombatScene.ts</span>
+        <span class="chip">src/game/combat/playerCombat.ts</span>
+        <span class="chip">src/game/boss/bossCombat.ts</span>
+        <span class="chip">src/game/attempt/outcome.ts</span>
+        <span class="chip">docs/design/BOSS_AI.md</span>
+      </div>
+      <div class="diagram-frame" style="overflow-x: auto">
+        <table class="uc-table">
+          <tr><th>Primary Actor</th><td>Player</td></tr>
+          <tr><th>Preconditions</th><td>Signed in, on <code>/play</code>; <code>fight:start</code> fired with a real <code>PlayerBuild</code> — <code>CombatScene.startFight()</code> has run and <code>this.ready === true</code>.</td></tr>
+          <tr><th>Postconditions — win</th><td><code>determineFightOutcome</code> returns <code>'victory'</code>; <code>fight:outcome</code> emitted with an optimistic estimate; <b>Resolve Attempt</b> persists the real reward.</td></tr>
+          <tr><th>Postconditions — loss</th><td>Same event, <code>result: 'death'</code>; reward computed as <b>0</b> by design — death pays nothing, enforced again server-side and never trusted from the client.</td></tr>
+          <tr><th>Trigger</th><td>The <code>fight:start</code> bridge event, once <code>PlayShell</code> has a resolved build.</td></tr>
+          <tr><th>Main flow</th><td>Fixed 60Hz tick: sample input → <code>playerCombat.step</code> → <code>bossCombat.step</code> (L2 tactic re-score, L3 move selection) → cross-entity hit resolution → render → repeat until a terminal HP state.</td></tr>
+          <tr><th>Alt flows</th><td>A1 Dodge (i-frames) · A2 Block (stamina drain, guard break) · A3 Cast Sorcery (FP-gated) · A4 Boss <code>PUNISH</code> pre-empts on an opening · A5 Boss <code>RECOVER</code> skips selection entirely · A6 Posture break opens a critical window.</td></tr>
+          <tr><th>Exceptions</th><td>E1 Simultaneous near-KO resolves to exactly one outcome, never double-reported · E2 A stalled frame is capped at 5 ticks' catch-up, never a runaway burst.</td></tr>
+          <tr><th>Business rules</th><td><code>F1</code> tell ≥18 ticks · <code>F2</code> ≥30-tick sequence gap · <code>F3</code> chain cap · <code>F5</code> punish ≤1/4s · <code>F7</code> grabs never combo · <code>F8</code> no 3rd consecutive repeat.</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <!-- FIGURE 3 — SEQUENCE: SIGN IN -->
+    <section class="figure" id="fig-3">
+      <p class="fig-eyebrow">Figure 03 · Sequence Diagram — drawn by Member A</p>
+      <h2 class="fig-title">Sign In (with Google)</h2>
+      <p class="fig-desc">
+        A strictly time-ordered four-hop redirect chain — exactly what a
+        vertical timeline reads best. The provisioning step is wrapped in
+        an <code>opt</code> fragment because it only fires the very first
+        time a given Google account signs in.
+      </p>
+      <div class="chips">
+        <span class="chip">src/components/AuthButton.tsx</span>
+        <span class="chip">src/app/auth/callback/route.ts</span>
+        <span class="chip">…initial_schema.sql (handle_new_user)</span>
+        <span class="chip">src/app/play/page.tsx</span>
+      </div>
+      <div class="diagram-frame">
+        <pre class="mermaid">
+sequenceDiagram
+    actor Player
+    participant Btn as SignInButton&lt;br/&gt;(AuthButton.tsx)
+    participant Supa as Supabase Auth Client
+    participant Google
+    participant Callback as /auth/callback Route
+    participant Trigger as Postgres&lt;br/&gt;(handle_new_user trigger)
+    participant PlayPage as PlayPage (/play)
+
+    Player->>Btn: click "Sign in with Google"
+    Btn->>Supa: signInWithOAuth({provider:'google', redirectTo})
+    Supa-->>Player: browser redirect to Google
+    Player->>Google: authenticate + consent
+    Google-->>Callback: redirect ?code=...
+
+    Callback->>Supa: exchangeCodeForSession(code)
+    Supa-->>Callback: session established
+
+    opt first sign-in ever for this Google account
+        Supa->>Trigger: INSERT auth.users row&lt;br/&gt;(fires on_auth_user_created)
+        Trigger->>Trigger: INSERT player_stats(user_id)
+        Trigger->>Trigger: INSERT player_progress(user_id)
+        Trigger->>Trigger: INSERT player_builds(user_id)
+    end
+
+    Callback-->>Player: redirect to /play
+    Player->>PlayPage: GET /play
+    PlayPage->>Supa: auth.getUser()
+    Supa-->>PlayPage: {user}
+
+    alt user is null
+        PlayPage-->>Player: redirect('/')
+    else user present
+        PlayPage-->>Player: render PlayShell&lt;br/&gt;(→ CharacterSheet)
+    end
+        </pre>
+      </div>
+      <div class="notes">
+        <div class="note gold">
+          <div class="bar"></div>
+          <div>No password ever touches this system — Google OAuth is the sole sign-in method (ADR-0003).</div>
+        </div>
+        <div class="note steel">
+          <div class="bar"></div>
+          <div><code>PlayPage</code> is a server component — <code>auth.getUser()</code> runs on the server before any HTML reaches the browser.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FIGURE 4 — SEQUENCE: FIGHT -->
+    <section class="figure" id="fig-4">
+      <p class="fig-eyebrow">Figure 04 · Sequence Diagram — drawn by Member B</p>
+      <h2 class="fig-title">Fight the Adaptive Boss — one tick, a light attack connects</h2>
+      <p class="fig-desc">
+        Scope is deliberately one representative tick, not the whole
+        multi-minute fight — showing "loop 3,600+ times" end to end would
+        communicate less than one real tick does.
+      </p>
+      <div class="chips">
+        <span class="chip">CombatScene.ts (update, resolvePlayerAttackOnBoss)</span>
+        <span class="chip">playerCombat.ts (step)</span>
+        <span class="chip">bossCombat.ts (step, resolveBossHit)</span>
+        <span class="chip">tactics.ts (tickTactic)</span>
+        <span class="chip">actionSelection.ts (selectTopLevel)</span>
+      </div>
+      <div class="diagram-frame">
+        <pre class="mermaid">
+sequenceDiagram
+    actor Player
+    participant Scene as CombatScene
+    participant PC as playerCombat&lt;br/&gt;(pure)
+    participant BC as bossCombat&lt;br/&gt;(pure)
+    participant Tac as TacticMachine&lt;br/&gt;(tactics.ts)
+    participant Sel as ActionSelection&lt;br/&gt;(actionSelection.ts)
+
+    loop every 60Hz tick, until determineFightOutcome() != null
+        Player->>Scene: keyboard input this frame
+        Scene->>Scene: sampleInput() → CombatInput
+
+        Scene->>PC: step(sim, input, ctx)
+        PC-->>Scene: {state, events: [attack:active]}
+
+        alt attack:active event (light attack)
+            Scene->>Scene: resolvePlayerAttackOnBoss('light')
+            Scene->>Scene: meleeDamage('light', build.dexterity)
+            Scene->>BC: resolveBossHit(boss, {hp, poise, postureDamage})
+            BC-->>Scene: {state, wasCritical}
+            Scene->>Scene: triggerHitstop() / shake() / sfx('hit')
+        end
+
+        Scene->>BC: step(boss, bossCtx)
+        BC->>Tac: tickTactic(prev, getSignals, ctx)
+        Note over Tac: runs unconditionally every tick —&lt;br/&gt;even mid-swing or staggered
+        Tac-->>BC: {state, changed}
+
+        alt boss idle (action == null) and tactic != RECOVER
+            BC->>Sel: selectTopLevel(table, ids, distance, state, weighting)
+            Sel-->>BC: {kind:'move', moveId} or {kind:'no-action'}
+        else tactic == RECOVER
+            Note over BC: selection skipped —&lt;br/&gt;approach() only
+        end
+        BC-->>Scene: {state, events}
+
+        Scene->>Scene: determineFightOutcome(boss.hp, sim.hp)
+        Scene->>Scene: render() — sprites, HUD, audio
+    end
+
+    Scene-->>Player: outcome reached → fight:outcome emitted
+        </pre>
+      </div>
+      <div class="notes">
+        <div class="note gold">
+          <div class="bar"></div>
+          <div>No network round-trip happens during the fight — <code>step()</code> is pure, local state only, which is what makes the fixed-timestep loop replayable from a seed.</div>
+        </div>
+        <div class="note blood">
+          <div class="bar"></div>
+          <div>The <code>RECOVER</code> branch is drawn explicitly — it's the exact mechanism a prior playtest fix (PR #48) added, so the boss now gives a smothered player real relief instead of escalating pressure.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FIGURE 5 — COMMUNICATION: SPEND RUNES -->
+    <section class="figure" id="fig-5">
+      <p class="fig-eyebrow">Figure 05 · Communication Diagram — drawn by Member C</p>
+      <h2 class="fig-title">Spend Runes on Stats</h2>
+      <p class="fig-desc">
+        Chosen for the communication (not sequence) treatment because its
+        story is about which object owns which piece of validation — the
+        RPC vs. the row it locks — which a hub-and-spoke layout foregrounds
+        better than a timeline. Mermaid has no native communication-diagram
+        type; this is built with numbered, labelled flowchart edges.
+      </p>
+      <div class="chips">
+        <span class="chip">src/components/CharacterSheet.tsx (confirmSpend)</span>
+        <span class="chip">…spend_stat_point.sql</span>
+      </div>
+      <div class="diagram-frame">
+        <pre class="mermaid">
+flowchart TD
+    Player(["Player"])
+    Sheet[":CharacterSheet"]
+    Client[":SupabaseClient"]
+    PostgREST[":PostgREST"]
+    RPC[":spend_stat_point()&lt;br/&gt;«SECURITY DEFINER»"]
+    Table[("player_stats&lt;br/&gt;(row, locked)")]
+
+    Player -- "1: click '+1'&lt;br/&gt;(already armed)" --> Sheet
+    Sheet -- "2: rpc('spend_stat_point',&lt;br/&gt;{p_stat})" --> Client
+    Client -- "3: HTTPS request + JWT" --> PostgREST
+    PostgREST -- "4: invoke as&lt;br/&gt;authenticated role" --> RPC
+    RPC -- "5: SELECT ... FOR UPDATE" --> Table
+    Table -- "6: locked row value" --> RPC
+    RPC -- "7: cost = 100+25×(current-10);&lt;br/&gt;UPDATE ... WHERE runes>=cost&lt;br/&gt;AND current<60" --> Table
+    Table -- "8: RETURNING new row,&lt;br/&gt;or 0 rows affected" --> RPC
+    RPC -- "9: new stats/runes,&lt;br/&gt;or raise exception" --> PostgREST
+    PostgREST -- "10: JSON response" --> Client
+    Client -- "11: {data, error}" --> Sheet
+    Sheet -- "12: re-render&lt;br/&gt;updated stat sheet" --> Player
+        </pre>
+      </div>
+      <div class="notes">
+        <div class="note gold">
+          <div class="bar"></div>
+          <div><b>Message 5 is the whole point of this diagram.</b> The next point's cost depends on the stat's <i>current</i> value, so it must be read before it's charged for. A plain <code>SELECT</code> first would let two concurrent calls both read the same pre-spend value and both pass a balance check against runes neither has actually paid — <code>SELECT ... FOR UPDATE</code> closes that race.</div>
+        </div>
+        <div class="note steel">
+          <div class="bar"></div>
+          <div>The client never supplies an amount (ADR-0003) — <code>p_stat</code> selects <i>which</i> rule applies; the RPC computes cost and validates the hard cap itself, server-side, every time.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FIGURE 6 — ACTIVITY -->
+    <section class="figure" id="fig-6">
+      <p class="fig-eyebrow">Figure 06 · Activity Diagram</p>
+      <h2 class="fig-title">Boss L2→L3 Decision Process (one tick)</h2>
+      <p class="fig-desc">
+        The named criterion was "whose decision-making is best understood
+        as a workflow" — nothing else in the system comes close on
+        decision density. Two structural facts, re-verified against source
+        before drawing: L2 runs <i>every</i> tick unconditionally, and
+        <code>RECOVER</code> skips L3 entirely rather than biasing it.
+      </p>
+      <div class="chips">
+        <span class="chip">bossCombat.ts (step)</span>
+        <span class="chip">tactics.ts (tickTactic)</span>
+        <span class="chip">actionSelection.ts (selectTopLevel, selectComboBranch)</span>
+      </div>
+      <div class="diagram-frame">
+        <pre class="mermaid">
+flowchart TD
+    Start(("●")) --> Decay[Passive per-tick decay:&lt;br/&gt;poise, posture, selection cooldowns]
+    Decay --> L2Start
+
+    subgraph L2["L2 — Tactic Machine — runs every tick, unconditionally"]
+        direction TB
+        L2Start{Punishable opening&lt;br/&gt;AND cooldown == 0&lt;br/&gt;AND tactic != PUNISH?}
+        L2Start -- yes --> SetPunish[Set tactic = PUNISH&lt;br/&gt;reset F5 cooldown]
+        L2Start -- no --> HoldCheck{Hold timer&lt;br/&gt;expired?}
+        HoldCheck -- no --> KeepTactic[Keep current tactic]
+        HoldCheck -- yes --> Softmax["Softmax pick over 5 tactics&lt;br/&gt;{probabilistic — weights =&lt;br/&gt;BASE_SCORE × behaviorMod}"]
+        Softmax --> NewTactic[New tactic + new hold duration]
+    end
+
+    SetPunish --> Gate1
+    KeepTactic --> Gate1
+    NewTactic --> Gate1
+
+    Gate1{staggerTicks > 0?}
+    Gate1 -- yes --> WaitStagger[Decrement stagger, no action]
+    Gate1 -- no --> Gate2{Posture critical&lt;br/&gt;window open?}
+    Gate2 -- yes --> Frozen[Collapsed — frozen]
+    Gate2 -- no --> Gate3{action == null&lt;br/&gt;boss idle?}
+
+    subgraph L3["L3 — Action Selection"]
+        direction TB
+        Gate3 -- no, mid-action --> AdvancePhase[Advance startup→active→recovery]
+        AdvancePhase --> RecoveryDone{Recovery phase&lt;br/&gt;just finished?}
+        RecoveryDone -- no --> EndTick1[end tick]
+        RecoveryDone -- yes --> ComboCheck{Combo field AND&lt;br/&gt;chainDepth < maxChain?}
+
+        ComboCheck -- yes --> ComboFilter[Filter combo.next links:&lt;br/&gt;range, cooldown, F8, condition]
+        ComboFilter --> ComboPick["Weighted pick + unclaimed&lt;br/&gt;'end sequence' mass&lt;br/&gt;{probabilistic}"]
+        ComboPick --> ComboResult{Link picked?}
+        ComboResult -- yes --> StartMove1[startMove — continue combo]
+        ComboResult -- no --> SeqEnd1[sequence-end, start F2 gap]
+
+        ComboCheck -- no --> SeqEnd2[sequence-end, start F2 gap]
+
+        Gate3 -- yes, idle --> RecoverCheck{tactic == RECOVER?}
+        RecoverCheck -- yes --> ApproachOnly["approach() only —&lt;br/&gt;L3 skipped entirely"]
+        RecoverCheck -- no --> GapCheck{gapTicksRemaining > 0?}
+        GapCheck -- yes --> ApproachOnly2[no-action: approach]
+        GapCheck -- no --> EligFilter[Filter table: range, cooldown, F8]
+        EligFilter --> EligEmpty{Eligible set empty?}
+        EligEmpty -- yes --> ApproachOnly3[no-action: approach]
+        EligEmpty -- no --> TacticMatch{Any move tags match&lt;br/&gt;current tactic?}
+        TacticMatch -- yes --> PoolMatched[pool = tactic-matched subset]
+        TacticMatch -- no --> PoolFallback["pool = full eligible set&lt;br/&gt;(documented fallback)"]
+        PoolMatched --> WeightedPick["Weighted pick over pool&lt;br/&gt;{probabilistic}"]
+        PoolFallback --> WeightedPick
+        WeightedPick --> StartMove2[startMove — fresh sequence]
+    end
+
+    WaitStagger --> End(("●"))
+    Frozen --> End
+    EndTick1 --> End
+    StartMove1 --> End
+    SeqEnd1 --> End
+    SeqEnd2 --> End
+    ApproachOnly --> End
+    ApproachOnly2 --> End
+    ApproachOnly3 --> End
+    StartMove2 --> End
+        </pre>
+      </div>
+      <div class="notes">
+        <div class="note blood">
+          <div class="bar"></div>
+          <div><b>Notation caveat, stated on purpose:</b> standard UML decision nodes carry mutually-exclusive boolean guards. The two weighted picks here are <i>probabilistic</i> — nothing about system state alone determines the branch, only a distribution does. Both are labelled <code>{probabilistic}</code> rather than drawn like an ordinary <code>if</code>.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FIGURE 7 — CLASS DIAGRAM -->
+    <section class="figure" id="fig-7">
+      <p class="fig-eyebrow">Figure 07a · Class Diagram — Domain / Runtime</p>
+      <h2 class="fig-title">In-memory state: combat, boss AI, and the scene</h2>
+      <p class="fig-desc">
+        The system is a functional core / imperative shell (ADR-0001).
+        State interfaces are modeled as classes with their real fields and
+        the actual pure functions that transform them as operations — the
+        two real OOP classes (<code>GameBridge</code>,
+        <code>CombatScene</code>) are drawn as themselves. Split from the
+        persistence layer (Figure 07b) purely because Mermaid's per-diagram
+        text-size ceiling rejected one combined diagram — every class,
+        attribute, method, and relationship from the original draft is
+        still here, just across two figures. Separating the logical model
+        from the data model is a defensible pattern on its own merits too.
+      </p>
+      <div class="chips">
+        <span class="chip">playerCombat.ts</span>
+        <span class="chip">bossCombat.ts</span>
+        <span class="chip">tactics.ts</span>
+        <span class="chip">actionSelection.ts</span>
+        <span class="chip">bridge.ts</span>
+        <span class="chip">CombatScene.ts</span>
+      </div>
+      <div class="diagram-frame">
+        <pre class="mermaid">
+classDiagram
+    class PlayerCombatState {
+        +x: number
+        +facing: 1 | -1
+        +hp: number
+        +stamina: number
+        +fp: number
+        +action: ActiveAction?
+        +poiseDamage: number
+        +staggerTicks: number
+        +ticksSinceStaminaSpend: number
+        +ticksSinceFpSpend: number
+        +projectiles: Projectile[]
+        +nextProjectileId: number
+        +createPlayerState(x, build?)$ PlayerCombatState
+        +step(state, input, ctx)$ StepResult
+        +poiseThreshold(build)$ number
+        +isStaggered(state)$ boolean
+        +isInvulnerable(state)$ boolean
+        +resolveIncomingHit(state, incoming, build)$ HitResolution
+    }
+
+    class Projectile {
+        +id: number
+        +x: number
+        +facing: 1 | -1
+        +ticksAlive: number
+        +damage: number
+    }
+
+    class StepContext {
+        +build: PlayerBuild
+        +minX: number
+        +maxX: number
+    }
+
+    class PlayerBuild {
+        +vitality: number
+        +dexterity: number
+        +intelligence: number
+    }
+
+    class BossCombatState {
+        +x: number
+        +facing: 1 | -1
+        +hp: number
+        +poiseDamage: number
+        +posture: PostureState
+        +action: BossActiveMove?
+        +staggerTicks: number
+        +selection: SelectionState
+        +tactic: TacticState
+        +tracker: TrackerState
+        +createBossState(x, seed)$ BossCombatState
+        +step(state, ctx)$ StepResult
+        +resolveBossHit(state, incoming)$ BossHitResolution
+        +isPunishableOpening(player, distance)$ boolean
+    }
+
+    class PostureState {
+        +value: number
+        +criticalTicks: number
+        +createPostureState()$ PostureState
+        +tickPosture(state)$ TickResult
+        +applyPostureDamage(state, amount)$ TickResult
+        +isCriticalWindowOpen(state)$ boolean
+    }
+
+    class TacticState {
+        +current: Tactic
+        +ticksInTactic: number
+        +holdTicks: number
+        +punishCooldown: number
+        +rng: RngState
+        +createTacticState(rng)$ TacticState
+        +tickTactic(state, getSignals, ctx)$ TacticDecision
+    }
+
+    class SelectionState {
+        +rng: RngState
+        +cooldowns: Record~string, number~
+        +chainDepth: number
+        +recentMoves: string[]
+        +gapTicksRemaining: number
+        +createSelectionState(rng)$ SelectionState
+        +selectTopLevel(table, ids, distance, state, weighting?)$ SelectionResult
+        +selectComboBranch(table, distance, lastMoveId, state, lastPlayerAction)$ SelectionResult
+    }
+
+    class TrackerState {
+        +buckets: Bucket[]
+        +cursor: number
+        +tickInBucket: number
+        +ticksSinceBossStartup: number
+        +createTracker()$ TrackerState
+        +trackTick(state, observed)$ TrackerState
+        +computeSignals(state)$ BehaviorSignals
+    }
+
+    class MoveDef {
+        &lt;&lt;reference data&gt;&gt;
+        +id: string
+        +tags: MoveTag[]
+        +tactics: Tactic[]
+        +rangeBand: [number, number]
+        +frames: FrameWindow
+        +tellFrames: number
+        +damage: number
+        +poiseDamage: number
+        +postureSelfRisk: number
+        +staminaCost: number
+        +combo: ComboDef?
+        +cooldownTicks: number
+        +comboOnly: boolean?
+    }
+
+    class GameBridge {
+        +toGame: TypedEmitter~ShellToGameEvents~
+        +toShell: TypedEmitter~GameToShellEvents~
+        +dispose() void
+    }
+
+    class CombatScene {
+        &lt;&lt;Phaser.Scene&gt;&gt;
+        -sim: PlayerCombatState
+        -boss: BossCombatState
+        -ctx: StepContext
+        -bossCtx: BossStepContext
+        -bridge: GameBridge?
+        -hitstopMs: number
+        -deathAnimMs: number
+        -finished: boolean
+        -ready: boolean
+        +preload() void
+        +create() void
+        +update(time, delta) void
+        -startFight(payload) void
+        -resolvePlayerAttackOnBoss(attackId) void
+        -resolveBossAttackOnPlayer(move) void
+        -reportOutcome(result) void
+    }
+
+    PlayerCombatState "1" *-- "0..*" Projectile
+    BossCombatState "1" *-- "1" PostureState
+    BossCombatState "1" *-- "1" TacticState
+    BossCombatState "1" *-- "1" SelectionState
+    BossCombatState "1" *-- "1" TrackerState
+    StepContext "1" o-- "1" PlayerBuild
+
+    PlayerCombatState ..> StepContext : step(state, input, ctx)
+    SelectionState ..> MoveDef : selects
+
+    CombatScene "1" o-- "1" PlayerCombatState
+    CombatScene "1" o-- "1" BossCombatState
+    CombatScene "1" --> "1" GameBridge
+    CombatScene ..> StepContext : owns ctx
+        </pre>
+      </div>
+      <div class="notes">
+        <div class="note blood">
+          <div class="bar"></div>
+          <div><b><code>PlayerCombatState → PlayerBuild</code> — corrected.</b> First draft claimed a direct 1-to-1 association. Checked the interface directly: <code>PlayerCombatState</code> has no <code>build</code> field — it lives on the separate <code>StepContext</code> parameter object, used only as a dependency, never stored.</div>
+        </div>
+        <div class="note gold">
+          <div class="bar"></div>
+          <div>No relationship is drawn between <code>BossCombatState</code> and <code>PlayerBuild</code> at all — a first draft claimed one; checked <code>BossStepContext</code> directly and it has no <code>build</code> field and no path to one. The boss's step function never reads the player's stat build.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="figure" id="fig-7b">
+      <p class="fig-eyebrow">Figure 07b · Class Diagram — Persistence</p>
+      <h2 class="fig-title">Postgres tables and their real multiplicities</h2>
+      <p class="fig-desc">
+        Multiplicities read off the actual constraints, not assumed — see
+        the notes below for two that turned out different from the first
+        draft once checked against the schema directly.
+      </p>
+      <div class="chips">
+        <span class="chip">supabase/migrations/*.sql</span>
+      </div>
+      <div class="diagram-frame">
+        <pre class="mermaid">
+classDiagram
+    class AuthUser {
+        &lt;&lt;Postgres, auth.users&gt;&gt;
+        +id: uuid
+    }
+    class PlayerStats {
+        &lt;&lt;table&gt;&gt;
+        +user_id: uuid  PK/FK
+        +vitality: integer
+        +dexterity: integer
+        +intelligence: integer
+        +runes: bigint
+        +updated_at: timestamptz
+    }
+    class PlayerProgress {
+        &lt;&lt;table&gt;&gt;
+        +user_id: uuid  PK/FK
+        +current_region: region_id
+        +regions_cleared: region_id[]
+        +updated_at: timestamptz
+    }
+    class PlayerBuildRow {
+        &lt;&lt;table, player_builds&gt;&gt;
+        +id: uuid  PK
+        +user_id: uuid  FK
+        +weapon_id: text
+        +is_active: boolean
+        +created_at: timestamptz
+    }
+    class AttemptLog {
+        &lt;&lt;table, attempt_logs&gt;&gt;
+        +id: uuid  PK
+        +user_id: uuid  FK
+        +boss_id: text
+        +result: text
+        +duration_ticks: integer
+        +rune_delta: integer
+        +region_unlocked: boolean
+        +log: jsonb
+        +created_at: timestamptz
+    }
+    class Boss {
+        &lt;&lt;table, bosses&gt;&gt;
+        +id: text  PK
+        +region_id: region_id
+        +rune_reward: integer
+    }
+
+    AuthUser "1" -- "0..1" PlayerStats
+    AuthUser "1" -- "0..1" PlayerProgress
+    AuthUser "1" -- "0..*" PlayerBuildRow
+    AuthUser "1" -- "0..*" AttemptLog
+    AttemptLog "0..*" --> "1" Boss : boss_id «not FK-enforced»
+        </pre>
+      </div>
+      <div class="notes">
+        <div class="note blood">
+          <div class="bar"></div>
+          <div><b><code>AttemptLog → Boss</code> — corrected twice over.</b> First draft had the dependency arrow pointing the wrong way (a dependency points from the dependent to what it depends on) <i>and</i> carrying an association-style multiplicity, which a dependency can't. Checked the schema directly: no FK exists — <code>attempt_logs.boss_id</code> is validated only inside <code>resolve_attempt</code>, never by Postgres. Rebuilt as a correctly-directed association, stereotyped to say so.</div>
+        </div>
+        <div class="note gold">
+          <div class="bar"></div>
+          <div><code>AuthUser — PlayerStats/PlayerProgress</code> are <b>0..1, not 1</b> — provisioning is an application-level trigger, not a schema guarantee. A backfill migration exists precisely because pre-trigger accounts once had zero.</div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      Source of truth for every figure lives in
+      <code style="font-family: var(--mono)">docs/uml/</code> in the
+      repository — this page is a rendered view of that content, built for
+      review, not a replacement for it.
+    </footer>
+  </main>
+</div>
+
+<script>
+  (function () {
+    var links = Array.prototype.slice.call(
+      document.querySelectorAll('#toc a[href^="#"]'),
+    );
+    var sections = links
+      .map(function (a) {
+        return document.querySelector(a.getAttribute('href'));
+      })
+      .filter(Boolean);
+
+    if (!('IntersectionObserver' in window) || sections.length === 0) return;
+
+    var byId = {};
+    links.forEach(function (a) {
+      byId[a.getAttribute('href').slice(1)] = a;
+    });
+
+    var observer = new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (entry) {
+          var link = byId[entry.target.id];
+          if (!link) return;
+          if (entry.isIntersecting) {
+            links.forEach(function (l) {
+              l.classList.remove('active');
+            });
+            link.classList.add('active');
+          }
+        });
+      },
+      { rootMargin: '-10% 0px -70% 0px', threshold: 0 },
+    );
+
+    sections.forEach(function (s) {
+      observer.observe(s);
+    });
+  })();
+</script>
+
+<!-- Standalone-doc addition: the published Artifact renders <pre class="mermaid">
+     blocks via the platform's own built-in Mermaid support. Opened as a plain
+     file, this page needs to load Mermaid itself — done here via CDN with the
+     library's default theme (no custom colors), matching what the platform
+     renders. -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: 'default' });
+</script>
+</body>
+</html>
