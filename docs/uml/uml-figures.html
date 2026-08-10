@@ -1,0 +1,1469 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rise, Tarnished UML Documentation</title>
+<style>
+  :root {
+    --bg: #efe7d3;
+    --bg-raised: #e3dac3;
+    --ink: #221d17;
+    --ink-dim: #52493c;
+    --ink-faint: #8a7f6c;
+    --line: #cdc2a4;
+    --gold: #9a730c;
+    --blood: #6b2a3a;
+    --steel: #33488f;
+    --card-bg: #f7f2e4;
+    --code-bg: #e6dcc2;
+    --shadow: 0 1px 2px rgba(34, 29, 23, 0.08);
+    --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+    --sans:
+      -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --mono:
+      ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
+  }
+  :root[data-theme='dark'] {
+    --bg: #15120f;
+    --bg-raised: #1c1812;
+    --ink: #d9cda6;
+    --ink-dim: #b3a889;
+    --ink-faint: #7d735c;
+    --line: #3a3327;
+    --gold: #d4a017;
+    --blood: #d0808f;
+    --steel: #8ea0e8;
+    --card-bg: #1a1611;
+    --code-bg: #211c15;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      --bg: #15120f;
+      --bg-raised: #1c1812;
+      --ink: #d9cda6;
+      --ink-dim: #b3a889;
+      --ink-faint: #7d735c;
+      --line: #3a3327;
+      --gold: #d4a017;
+      --blood: #d0808f;
+      --steel: #8ea0e8;
+      --card-bg: #1a1611;
+      --code-bg: #211c15;
+      --shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    }
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+  }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  a {
+    color: var(--gold);
+  }
+
+  .shell {
+    display: grid;
+    grid-template-columns: 260px minmax(0, 1fr);
+    max-width: 1240px;
+    margin: 0 auto;
+    gap: 0;
+  }
+  @media (max-width: 880px) {
+    .shell {
+      grid-template-columns: 1fr;
+    }
+    .rail {
+      position: static !important;
+      height: auto !important;
+      border-right: none !important;
+      border-bottom: 1px solid var(--line);
+    }
+  }
+
+  .rail {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    padding: 2rem 1.25rem 2rem 1.5rem;
+    border-right: 1px solid var(--line);
+  }
+  .rail-title {
+    font-family: var(--serif);
+    font-size: 1.05rem;
+    line-height: 1.3;
+    margin: 0 0 0.15rem;
+  }
+  .rail-sub {
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 1.6rem;
+  }
+  .rail nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+  .rail nav a {
+    text-decoration: none;
+    color: var(--ink-dim);
+    font-size: 0.86rem;
+    padding: 0.4rem 0.5rem;
+    border-radius: 4px;
+    display: flex;
+    gap: 0.55rem;
+    align-items: baseline;
+    transition: background 0.15s ease;
+  }
+  .rail nav a:hover {
+    background: var(--bg-raised);
+  }
+  .rail nav a.active {
+    color: var(--ink);
+    background: var(--bg-raised);
+  }
+  .rail nav a.active .num {
+    color: var(--gold);
+  }
+  .rail nav a .num {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--ink-faint);
+    min-width: 1.4em;
+  }
+  .rail-group-label {
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 1.1rem 0 0.3rem 0.5rem;
+  }
+  .rail-group-label:first-of-type {
+    margin-top: 0;
+  }
+
+  main {
+    min-width: 0;
+    padding: 3.2rem clamp(1.25rem, 4vw, 3.5rem) 6rem;
+  }
+
+  header.hero {
+    margin-bottom: 3rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.74rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin: 0 0 0.7rem;
+  }
+  h1 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(1.9rem, 3.4vw, 2.6rem);
+    line-height: 1.15;
+    margin: 0 0 0.75rem;
+    text-wrap: balance;
+  }
+  header.hero p {
+    max-width: 62ch;
+    color: var(--ink-dim);
+    font-size: 1.02rem;
+    margin: 0;
+  }
+
+  .callout {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.7rem;
+    align-items: start;
+    background: var(--bg-raised);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 1rem 1.15rem;
+    margin: 1.4rem 0;
+    font-size: 0.92rem;
+    color: var(--ink-dim);
+  }
+  .callout .tag {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.15rem 0.5rem;
+    border-radius: 3px;
+    white-space: nowrap;
+    height: fit-content;
+  }
+  .callout.corrected .tag {
+    background: color-mix(in srgb, var(--blood) 22%, transparent);
+    color: var(--blood);
+  }
+  .callout.fact .tag {
+    background: color-mix(in srgb, var(--gold) 20%, transparent);
+    color: var(--gold);
+  }
+  .callout ul {
+    margin: 0;
+    padding-left: 1.1rem;
+  }
+  .callout li {
+    margin-bottom: 0.4rem;
+  }
+  .callout li:last-child {
+    margin-bottom: 0;
+  }
+
+  section.figure {
+    margin: 4.2rem 0;
+    scroll-margin-top: 1.5rem;
+  }
+  section.figure:first-of-type {
+    margin-top: 0;
+  }
+  .fig-eyebrow {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--steel);
+    margin: 0 0 0.5rem;
+  }
+  .fig-title {
+    font-family: var(--serif);
+    font-size: 1.55rem;
+    font-weight: 400;
+    margin: 0 0 0.55rem;
+    text-wrap: balance;
+  }
+  .fig-desc {
+    color: var(--ink-dim);
+    max-width: 68ch;
+    margin: 0 0 1rem;
+    font-size: 0.96rem;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-bottom: 1.4rem;
+  }
+  .chip {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    background: var(--code-bg);
+    color: var(--ink-dim);
+    padding: 0.22rem 0.55rem;
+    border-radius: 4px;
+    border: 1px solid var(--line);
+  }
+
+  .diagram-frame {
+    background: var(--card-bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+    padding: 1.5rem;
+    overflow-x: auto;
+  }
+  .diagram-frame pre.mermaid {
+    margin: 0;
+    display: flex;
+    justify-content: center;
+  }
+
+  /* Hand-authored UML figures (use case, communication). Mermaid has no
+     native diagram type for either, so these are drawn directly rather
+     than approximated with a flowchart. */
+  svg.uml-svg {
+    display: block;
+    margin: 0 auto;
+    max-width: 100%;
+    height: auto;
+    font-family: var(--sans);
+  }
+  svg.uml-svg text {
+    fill: var(--ink);
+    font-size: 13px;
+  }
+  .uml-boundary {
+    fill: none;
+    stroke: var(--line);
+    stroke-width: 1.5;
+  }
+  .uml-boundary-title {
+    fill: var(--ink-dim);
+    font-size: 13.5px;
+    letter-spacing: 0.03em;
+  }
+  .uml-usecase {
+    fill: var(--bg-raised);
+    stroke: var(--gold);
+    stroke-width: 1.5;
+  }
+  .uml-object {
+    fill: var(--bg-raised);
+    stroke: var(--gold);
+    stroke-width: 1.5;
+  }
+  .uml-actor-head {
+    fill: var(--bg-raised);
+    stroke: var(--ink-dim);
+    stroke-width: 1.6;
+  }
+  .uml-actor-line {
+    fill: none;
+    stroke: var(--ink-dim);
+    stroke-width: 1.6;
+    stroke-linecap: round;
+  }
+  .uml-actor-name {
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  .uml-actor-sub {
+    font-size: 11px;
+    fill: var(--ink-dim);
+  }
+  .uml-assoc {
+    fill: none;
+    stroke: var(--ink-dim);
+    stroke-width: 1.2;
+  }
+  .uml-dep {
+    fill: none;
+    stroke: var(--ink-dim);
+    stroke-width: 1.2;
+    stroke-dasharray: 6 4;
+  }
+  .uml-arrowhead {
+    fill: none;
+    stroke: var(--ink-dim);
+    stroke-width: 1.4;
+  }
+  .uml-msg-arrowhead {
+    fill: var(--ink-dim);
+    stroke: none;
+  }
+  .uml-objname {
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: underline;
+  }
+  .uml-stereotype {
+    font-size: 11px;
+    fill: var(--ink-dim);
+  }
+  .uml-msg {
+    font-size: 10.5px;
+    fill: var(--ink);
+  }
+  .uml-msg-num {
+    font-weight: 700;
+  }
+  .uml-label-bg {
+    fill: var(--card-bg);
+  }
+  .uml-sub {
+    font-size: 10.5px;
+    fill: var(--ink-dim);
+  }
+
+  .notes {
+    margin-top: 1.3rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+  .note {
+    display: grid;
+    grid-template-columns: 3px 1fr;
+    gap: 0.85rem;
+    font-size: 0.9rem;
+    color: var(--ink-dim);
+  }
+  .note .bar {
+    background: var(--line);
+    border-radius: 2px;
+  }
+  .note.gold .bar {
+    background: var(--gold);
+  }
+  .note.blood .bar {
+    background: var(--blood);
+  }
+  .note.steel .bar {
+    background: var(--steel);
+  }
+  .note b {
+    color: var(--ink);
+    font-weight: 600;
+  }
+  .note code {
+    font-family: var(--mono);
+    font-size: 0.86em;
+    background: var(--code-bg);
+    padding: 0.08rem 0.35rem;
+    border-radius: 3px;
+  }
+
+  table.uc-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+    margin: 1rem 0;
+  }
+  table.uc-table th,
+  table.uc-table td {
+    text-align: left;
+    padding: 0.55rem 0.8rem;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  table.uc-table th {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    width: 12rem;
+  }
+
+  footer {
+    margin-top: 4rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--line);
+    color: var(--ink-faint);
+    font-size: 0.82rem;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .rail nav a {
+      transition: background 0.15s ease;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <aside class="rail">
+    <p class="rail-title">Rise, Tarnished</p>
+    <p class="rail-sub">UML Documentation</p>
+    <nav id="toc">
+      <a href="#overview"><span class="num">·</span>Overview</a>
+      <p class="rail-group-label">Behavioral</p>
+      <a href="#fig-1"><span class="num">01</span>Use Case Diagram</a>
+      <a href="#fig-2"><span class="num">02</span>Use Case Description</a>
+      <a href="#fig-3"><span class="num">03</span>Sequence (Sign In)</a>
+      <a href="#fig-4"><span class="num">04</span>Sequence (Fight)</a>
+      <a href="#fig-5"><span class="num">05</span>Communication (Spend Runes)</a>
+      <a href="#fig-6"><span class="num">06a</span>Activity (Tactic)</a>
+      <a href="#fig-6b"><span class="num">06b</span>Activity (Action)</a>
+      <p class="rail-group-label">Structural</p>
+      <a href="#fig-7"><span class="num">07a</span>Class (Domain)</a>
+      <a href="#fig-7b"><span class="num">07b</span>Class (Persistence)</a>
+    </nav>
+  </aside>
+
+  <main>
+    <header class="hero" id="overview">
+      <p class="eyebrow">Software Engineering, UML Deliverables</p>
+      <h1>Seven diagrams for Rise, Tarnished</h1>
+      <p>
+        <b>Rise, Tarnished</b> is a 2D souls-like boss-rush game. Each
+        diagram below is traced directly to the shipped source code
+        (<code style="font-family: var(--mono)">docs/uml-plan.md</code>
+        documents the full modeling plan).
+      </p>
+    </header>
+
+    <!-- FIGURE 1 — USE CASE DIAGRAM -->
+    <section class="figure" id="fig-1">
+      <p class="fig-eyebrow">Figure 01 · Use Case Diagram</p>
+      <h2 class="fig-title">The shipped MVP loop</h2>
+      <p class="fig-desc">
+        Player, Google, and Supabase are the actors. The diagram covers the
+        loop that is actually implemented, sign in, resume, fight, view
+        outcome, and resolve or spend runes.
+      </p>
+      <div class="chips">
+        <span class="chip">src/app/page.tsx</span>
+        <span class="chip">src/app/play/page.tsx</span>
+        <span class="chip">src/app/auth/callback/route.ts</span>
+        <span class="chip">src/components/CharacterSheet.tsx</span>
+        <span class="chip">src/game/scenes/CombatScene.ts</span>
+      </div>
+      <div class="diagram-frame">
+        <svg class="uml-svg" viewBox="0 0 1300 980" role="img"
+             aria-label="Use case diagram. Player, Google, and Supabase actors are each associated with individual use cases inside the Rise, Tarnished system boundary.">
+          <defs>
+            <marker id="uc-arrow" viewBox="0 0 10 10" refX="9.5" refY="5"
+                    markerWidth="8" markerHeight="8" orient="auto">
+              <path d="M0,0 L10,5 L0,10" class="uml-arrowhead"/>
+            </marker>
+          </defs>
+
+          <!-- system boundary -->
+          <rect x="260" y="30" width="810" height="920" rx="4" class="uml-boundary"/>
+          <text x="665" y="61" text-anchor="middle" class="uml-boundary-title">Rise, Tarnished</text>
+
+          <!-- actor: Player -->
+          <circle cx="140" cy="316" r="13" class="uml-actor-head"/>
+          <path class="uml-actor-line"
+                d="M140,329 L140,362 M120,341 L160,341 M140,362 L127,386 M140,362 L153,386"/>
+          <text x="140" y="408" text-anchor="middle" class="uml-actor-name">Player</text>
+
+          <!-- actor: Google -->
+          <circle cx="1190" cy="106" r="13" class="uml-actor-head"/>
+          <path class="uml-actor-line"
+                d="M1190,119 L1190,152 M1170,131 L1210,131 M1190,152 L1177,176 M1190,152 L1203,176"/>
+          <text x="1190" y="198" text-anchor="middle" class="uml-actor-name">Google</text>
+          <text x="1190" y="214" text-anchor="middle" class="uml-actor-sub">(OAuth Provider)</text>
+
+          <!-- actor: Supabase -->
+          <circle cx="1190" cy="316" r="13" class="uml-actor-head"/>
+          <path class="uml-actor-line"
+                d="M1190,329 L1190,362 M1170,341 L1210,341 M1190,362 L1177,386 M1190,362 L1203,386"/>
+          <text x="1190" y="408" text-anchor="middle" class="uml-actor-name">Supabase Platform</text>
+          <text x="1190" y="424" text-anchor="middle" class="uml-actor-sub">(Auth + Postgres)</text>
+
+          <!-- associations: Player to each use case -->
+          <path class="uml-assoc" d="M162,350 L555,125"/>
+          <path class="uml-assoc" d="M162,350 L555,215"/>
+          <path class="uml-assoc" d="M162,350 L555,305"/>
+          <path class="uml-assoc" d="M162,350 L555,395"/>
+          <path class="uml-assoc" d="M162,350 L555,520"/>
+          <path class="uml-assoc" d="M162,350 L555,730"/>
+
+          <!-- associations: Supabase to each use case -->
+          <path class="uml-assoc" d="M1168,350 L775,125"/>
+          <path class="uml-assoc" d="M1168,350 L775,215"/>
+          <path class="uml-assoc" d="M1168,350 L775,305"/>
+          <path class="uml-assoc" d="M1168,350 L775,395"/>
+          <path class="uml-assoc" d="M1168,350 L775,625"/>
+
+          <!-- association: Google to Sign In -->
+          <path class="uml-assoc" d="M1168,140 L775,125"/>
+
+          <!-- include / extend dependencies from Fight the Adaptive Boss -->
+          <path class="uml-dep" d="M665,761 L335,845" marker-end="url(#uc-arrow)"/>
+          <path class="uml-dep" d="M665,761 L467,845" marker-end="url(#uc-arrow)"/>
+          <path class="uml-dep" d="M665,761 L599,845" marker-end="url(#uc-arrow)"/>
+          <path class="uml-dep" d="M665,761 L731,845" marker-end="url(#uc-arrow)"/>
+          <path class="uml-dep" d="M665,761 L863,845" marker-end="url(#uc-arrow)"/>
+          <path class="uml-dep" d="M665,761 L995,845" marker-end="url(#uc-arrow)"/>
+
+          <!-- include dependency: View Fight Outcome to Resolve Attempt -->
+          <path class="uml-dep" d="M665,551 L665,592" marker-end="url(#uc-arrow)"/>
+
+          <!-- use cases: primary column -->
+          <ellipse cx="665" cy="125" rx="110" ry="31" class="uml-usecase"/>
+          <text x="665" y="121" text-anchor="middle">Sign In</text>
+          <text x="665" y="139" text-anchor="middle">(with Google)</text>
+
+          <ellipse cx="665" cy="215" rx="110" ry="31" class="uml-usecase"/>
+          <text x="665" y="220" text-anchor="middle">Sign Out</text>
+
+          <ellipse cx="665" cy="305" rx="110" ry="31" class="uml-usecase"/>
+          <text x="665" y="310" text-anchor="middle">Resume Progress</text>
+
+          <ellipse cx="665" cy="395" rx="110" ry="31" class="uml-usecase"/>
+          <text x="665" y="400" text-anchor="middle">Spend Runes on Stats</text>
+
+          <ellipse cx="665" cy="520" rx="110" ry="31" class="uml-usecase"/>
+          <text x="665" y="525" text-anchor="middle">View Fight Outcome</text>
+
+          <ellipse cx="665" cy="625" rx="110" ry="31" class="uml-usecase"/>
+          <text x="665" y="621" text-anchor="middle">Resolve Attempt</text>
+          <text x="665" y="639" text-anchor="middle" class="uml-sub">(persist result, grant runes)</text>
+
+          <ellipse cx="665" cy="730" rx="110" ry="31" class="uml-usecase"/>
+          <text x="665" y="726" text-anchor="middle">Fight the</text>
+          <text x="665" y="744" text-anchor="middle">Adaptive Boss</text>
+
+          <!-- use cases: sub-behaviours -->
+          <ellipse cx="335" cy="885" rx="62" ry="40" class="uml-usecase"/>
+          <text x="335" y="890" text-anchor="middle" font-size="12">Move</text>
+
+          <ellipse cx="467" cy="885" rx="62" ry="40" class="uml-usecase"/>
+          <text x="467" y="881" text-anchor="middle" font-size="12">Attack</text>
+          <text x="467" y="897" text-anchor="middle" font-size="11">(Light / Heavy)</text>
+
+          <ellipse cx="599" cy="885" rx="62" ry="40" class="uml-usecase"/>
+          <text x="599" y="890" text-anchor="middle" font-size="12">Dodge</text>
+
+          <ellipse cx="731" cy="885" rx="62" ry="40" class="uml-usecase"/>
+          <text x="731" y="890" text-anchor="middle" font-size="12">Block</text>
+
+          <ellipse cx="863" cy="885" rx="62" ry="40" class="uml-usecase"/>
+          <text x="863" y="890" text-anchor="middle" font-size="11.5">Cast Sorcery</text>
+
+          <ellipse cx="995" cy="885" rx="62" ry="40" class="uml-usecase"/>
+          <text x="995" y="881" text-anchor="middle" font-size="12">Land a</text>
+          <text x="995" y="897" text-anchor="middle" font-size="12">Critical Hit</text>
+
+          <!-- dependency stereotypes -->
+          <rect x="387" y="813" width="62" height="16" class="uml-label-bg"/>
+          <text x="418" y="825" text-anchor="middle" class="uml-stereotype">«include»</text>
+
+          <rect x="485" y="813" width="62" height="16" class="uml-label-bg"/>
+          <text x="516" y="825" text-anchor="middle" class="uml-stereotype">«include»</text>
+
+          <rect x="585" y="813" width="62" height="16" class="uml-label-bg"/>
+          <text x="616" y="825" text-anchor="middle" class="uml-stereotype">«extend»</text>
+
+          <rect x="684" y="813" width="62" height="16" class="uml-label-bg"/>
+          <text x="715" y="825" text-anchor="middle" class="uml-stereotype">«extend»</text>
+
+          <rect x="783" y="813" width="62" height="16" class="uml-label-bg"/>
+          <text x="814" y="825" text-anchor="middle" class="uml-stereotype">«extend»</text>
+
+          <rect x="882" y="813" width="62" height="16" class="uml-label-bg"/>
+          <text x="913" y="825" text-anchor="middle" class="uml-stereotype">«extend»</text>
+
+          <rect x="674" y="563" width="62" height="16" class="uml-label-bg"/>
+          <text x="705" y="575" text-anchor="middle" class="uml-stereotype">«include»</text>
+        </svg>
+      </div>
+      <div class="notes">
+        <div class="note gold">
+          <div class="bar"></div>
+          <div>
+            A sub-behavior is <code>«include»</code>d only if it is
+            performed, unconditionally, at a defined point in <i>every</i>
+            completed instance of the base use case, not merely because it
+            <i>can</i> happen.
+          </div>
+        </div>
+        <div class="note steel">
+          <div class="bar"></div>
+          <div>
+            Supabase is modeled as a secondary actor rather than inside the
+            system boundary. The use cases describe player goals, and
+            Supabase is a service the system calls out to, not something
+            the player interacts with directly.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FIGURE 2 — USE CASE DESCRIPTION -->
+    <section class="figure" id="fig-2">
+      <p class="fig-eyebrow">Figure 02 · Detailed Use Case Description</p>
+      <h2 class="fig-title">UC-05, Fight the Adaptive Boss</h2>
+      <p class="fig-desc">
+        This use case is documented in detail because it has real
+        alternate flows, a real failure path, and real business rules. The
+        remaining use cases are simple infrastructure or a single RPC
+        call.
+      </p>
+      <div class="chips">
+        <span class="chip">src/game/scenes/CombatScene.ts</span>
+        <span class="chip">src/game/combat/playerCombat.ts</span>
+        <span class="chip">src/game/boss/bossCombat.ts</span>
+        <span class="chip">src/game/attempt/outcome.ts</span>
+        <span class="chip">docs/design/BOSS_AI.md</span>
+      </div>
+      <div class="diagram-frame" style="overflow-x: auto">
+        <table class="uc-table">
+          <tr><th>Primary Actor</th><td>Player</td></tr>
+          <tr><th>Preconditions</th><td>Signed in and on <code>/play</code>. <code>fight:start</code> fired with a real <code>PlayerBuild</code>. <code>CombatScene.startFight()</code> has run and <code>this.ready</code> is true.</td></tr>
+          <tr><th>Postconditions, win</th><td><code>determineFightOutcome</code> returns <code>'victory'</code>. <code>fight:outcome</code> is emitted with an optimistic estimate. <b>Resolve Attempt</b> persists the real reward.</td></tr>
+          <tr><th>Postconditions, loss</th><td>Same event, with <code>result: 'death'</code>. Reward is computed as <b>0</b> by design. Death pays nothing, and this is enforced again server-side rather than trusted from the client.</td></tr>
+          <tr><th>Trigger</th><td>The <code>fight:start</code> bridge event, once <code>PlayShell</code> has a resolved build.</td></tr>
+          <tr><th>Main flow</th><td>Fixed 60Hz tick. Sample input, then <code>playerCombat.step</code>, then <code>bossCombat.step</code> (L2 tactic re-score, L3 move selection), then cross-entity hit resolution, then render. Repeats until a terminal HP state.</td></tr>
+          <tr><th>Alt flows</th><td>A1 Dodge (i-frames) · A2 Block (stamina drain, guard break) · A3 Cast Sorcery (FP-gated) · A4 Boss <code>PUNISH</code> pre-empts on an opening · A5 Boss <code>RECOVER</code> skips selection entirely · A6 Posture break opens a critical window.</td></tr>
+          <tr><th>Exceptions</th><td>E1 Simultaneous near-KO resolves to exactly one outcome, never double-reported · E2 A stalled frame is capped at 5 ticks' catch-up, never a runaway burst.</td></tr>
+          <tr><th>Business rules</th><td><code>F1</code> tell ≥18 ticks · <code>F2</code> ≥30-tick sequence gap · <code>F3</code> chain cap · <code>F5</code> punish ≤1/4s · <code>F7</code> grabs never combo · <code>F8</code> no 3rd consecutive repeat.</td></tr>
+        </table>
+      </div>
+    </section>
+
+    <!-- FIGURE 3 — SEQUENCE: SIGN IN -->
+    <section class="figure" id="fig-3">
+      <p class="fig-eyebrow">Figure 03 · Sequence Diagram (Member A)</p>
+      <h2 class="fig-title">Sign In (with Google)</h2>
+      <p class="fig-desc">
+        A strictly time-ordered four-hop redirect chain, shown as a
+        vertical timeline. The provisioning step is wrapped in an
+        <code>opt</code> fragment because it only fires the first time a
+        given Google account signs in.
+      </p>
+      <div class="chips">
+        <span class="chip">src/components/AuthButton.tsx</span>
+        <span class="chip">src/app/auth/callback/route.ts</span>
+        <span class="chip">…initial_schema.sql (handle_new_user)</span>
+        <span class="chip">src/app/play/page.tsx</span>
+      </div>
+      <div class="diagram-frame">
+        <pre class="mermaid">
+sequenceDiagram
+    actor Player
+    participant Btn as SignInButton&lt;br/&gt;(AuthButton.tsx)
+    participant Supa as Supabase Auth Client
+    participant Google
+    participant Callback as /auth/callback Route
+    participant Trigger as Postgres&lt;br/&gt;(handle_new_user trigger)
+    participant PlayPage as PlayPage (/play)
+
+    Player->>Btn: click "Sign in with Google"
+    Btn->>Supa: signInWithOAuth({provider:'google', redirectTo})
+    Supa-->>Player: browser redirect to Google
+    Player->>Google: authenticate + consent
+    Google-->>Callback: redirect ?code=...
+
+    Callback->>Supa: exchangeCodeForSession(code)
+    Supa-->>Callback: session established
+
+    opt first sign-in ever for this Google account
+        Supa->>Trigger: INSERT auth.users row&lt;br/&gt;(fires on_auth_user_created)
+        Trigger->>Trigger: INSERT player_stats(user_id)
+        Trigger->>Trigger: INSERT player_progress(user_id)
+        Trigger->>Trigger: INSERT player_builds(user_id)
+    end
+
+    Callback-->>Player: redirect to /play
+    Player->>PlayPage: GET /play
+    PlayPage->>Supa: auth.getUser()
+    Supa-->>PlayPage: {user}
+
+    alt user is null
+        PlayPage-->>Player: redirect('/')
+    else user present
+        PlayPage-->>Player: render PlayShell&lt;br/&gt;(→ CharacterSheet)
+    end
+        </pre>
+      </div>
+      <div class="notes">
+        <div class="note gold">
+          <div class="bar"></div>
+          <div>No password ever touches this system. Google OAuth is the sole sign-in method (ADR-0003).</div>
+        </div>
+        <div class="note steel">
+          <div class="bar"></div>
+          <div><code>PlayPage</code> is a server component. <code>auth.getUser()</code> runs on the server before any HTML reaches the browser.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FIGURE 4 — SEQUENCE: FIGHT -->
+    <section class="figure" id="fig-4">
+      <p class="fig-eyebrow">Figure 04 · Sequence Diagram (Member B)</p>
+      <h2 class="fig-title">Fight the Adaptive Boss (One Tick, Light Attack Connects)</h2>
+      <p class="fig-desc">
+        Scope is deliberately one representative tick rather than the whole
+        multi-minute fight. Showing the loop repeat 3,600+ times end to end
+        would communicate less than one real tick does.
+      </p>
+      <div class="chips">
+        <span class="chip">CombatScene.ts (update, resolvePlayerAttackOnBoss)</span>
+        <span class="chip">playerCombat.ts (step)</span>
+        <span class="chip">bossCombat.ts (step, resolveBossHit)</span>
+        <span class="chip">tactics.ts (tickTactic)</span>
+        <span class="chip">actionSelection.ts (selectTopLevel)</span>
+      </div>
+      <div class="diagram-frame">
+        <pre class="mermaid">
+sequenceDiagram
+    actor Player
+    participant Scene as CombatScene
+    participant PC as playerCombat&lt;br/&gt;(pure)
+    participant BC as bossCombat&lt;br/&gt;(pure)
+    participant Tac as TacticMachine&lt;br/&gt;(tactics.ts)
+    participant Sel as ActionSelection&lt;br/&gt;(actionSelection.ts)
+
+    loop every 60Hz tick, until determineFightOutcome() != null
+        Player->>Scene: keyboard input this frame
+        Scene->>Scene: sampleInput() → CombatInput
+
+        Scene->>PC: step(sim, input, ctx)
+        PC-->>Scene: {state, events: [attack:active]}
+
+        alt attack:active event (light attack)
+            Scene->>Scene: resolvePlayerAttackOnBoss('light')
+            Scene->>Scene: meleeDamage('light', build.dexterity)
+            Scene->>BC: resolveBossHit(boss, {hp, poise, postureDamage})
+            BC-->>Scene: {state, wasCritical}
+            Scene->>Scene: triggerHitstop() / shake() / sfx('hit')
+        end
+
+        Scene->>BC: step(boss, bossCtx)
+        BC->>Tac: tickTactic(prev, getSignals, ctx)
+        Note over Tac: runs unconditionally every tick,&lt;br/&gt;even mid-swing or staggered
+        Tac-->>BC: {state, changed}
+
+        alt boss idle (action == null) and tactic != RECOVER
+            BC->>Sel: selectTopLevel(table, ids, distance, state, weighting)
+            Sel-->>BC: {kind:'move', moveId} or {kind:'no-action'}
+        else tactic == RECOVER
+            Note over BC: selection skipped,&lt;br/&gt;approach() only
+        end
+        BC-->>Scene: {state, events}
+
+        Scene->>Scene: determineFightOutcome(boss.hp, sim.hp)
+        Scene->>Scene: render() with sprites, HUD, audio
+    end
+
+    Scene-->>Player: outcome reached → fight:outcome emitted
+        </pre>
+      </div>
+      <div class="notes">
+        <div class="note gold">
+          <div class="bar"></div>
+          <div>No network round-trip happens during the fight. <code>step()</code> is a pure function over local state only, which is what makes the fixed-timestep loop replayable from a seed.</div>
+        </div>
+        <div class="note blood">
+          <div class="bar"></div>
+          <div>The <code>RECOVER</code> branch is drawn explicitly. It gives a smothered player real relief instead of escalating pressure further.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FIGURE 5 — COMMUNICATION: SPEND RUNES -->
+    <section class="figure" id="fig-5">
+      <p class="fig-eyebrow">Figure 05 · Communication Diagram (Member C)</p>
+      <h2 class="fig-title">Spend Runes on Stats</h2>
+      <p class="fig-desc">
+        Shown as a communication diagram rather than a sequence diagram
+        because the story is about which object owns which piece of
+        validation, the RPC versus the row it locks. Objects are linked in
+        a chain, and the twelve messages are numbered in execution order
+        along the link each one travels.
+      </p>
+      <div class="chips">
+        <span class="chip">src/components/CharacterSheet.tsx (confirmSpend)</span>
+        <span class="chip">…spend_stat_point.sql</span>
+      </div>
+      <div class="diagram-frame">
+        <svg class="uml-svg" viewBox="0 70 1340 450" role="img"
+             aria-label="Communication diagram. Six objects linked in a chain, with twelve numbered messages showing the spend_stat_point call and the row lock it takes.">
+          <defs>
+            <marker id="msg-arrow" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="7" markerHeight="7" orient="auto">
+              <path d="M0,0 L10,5 L0,10 z" class="uml-msg-arrowhead"/>
+            </marker>
+          </defs>
+
+          <!-- links between objects -->
+          <path class="uml-assoc" d="M220,150 L420,150"/>
+          <path class="uml-assoc" d="M640,150 L830,150"/>
+          <path class="uml-assoc" d="M930,182 L930,398"/>
+          <path class="uml-assoc" d="M830,430 L640,430"/>
+          <path class="uml-assoc" d="M420,430 L195,430"/>
+
+          <!-- actor: Player -->
+          <circle cx="200" cy="116" r="13" class="uml-actor-head"/>
+          <path class="uml-actor-line"
+                d="M200,129 L200,162 M180,141 L220,141 M200,162 L187,186 M200,162 L213,186"/>
+          <text x="200" y="204" text-anchor="middle" class="uml-actor-name">Player</text>
+
+          <!-- objects -->
+          <rect x="420" y="118" width="220" height="64" class="uml-object"/>
+          <text x="530" y="155" text-anchor="middle" class="uml-objname">:CharacterSheet</text>
+
+          <rect x="830" y="118" width="200" height="64" class="uml-object"/>
+          <text x="930" y="155" text-anchor="middle" class="uml-objname">:SupabaseClient</text>
+
+          <rect x="830" y="398" width="200" height="64" class="uml-object"/>
+          <text x="930" y="435" text-anchor="middle" class="uml-objname">:PostgREST</text>
+
+          <rect x="420" y="396" width="220" height="68" class="uml-object"/>
+          <text x="530" y="424" text-anchor="middle" class="uml-objname">:spend_stat_point()</text>
+          <text x="530" y="444" text-anchor="middle" class="uml-stereotype">«SECURITY DEFINER»</text>
+
+          <rect x="15" y="396" width="180" height="68" class="uml-object"/>
+          <text x="105" y="424" text-anchor="middle" class="uml-objname">:player_stats</text>
+          <text x="105" y="444" text-anchor="middle" class="uml-stereotype">(row, locked)</text>
+
+          <!-- messages on link Player to CharacterSheet -->
+          <path class="uml-assoc" d="M285,136 L355,136" marker-end="url(#msg-arrow)"/>
+          <text x="320" y="128" text-anchor="middle" class="uml-msg"><tspan class="uml-msg-num">1:</tspan> click '+1'</text>
+          <path class="uml-assoc" d="M355,164 L285,164" marker-end="url(#msg-arrow)"/>
+          <text x="320" y="182" text-anchor="middle" class="uml-msg"><tspan class="uml-msg-num">12:</tspan> re-render stat sheet</text>
+
+          <!-- messages on link CharacterSheet to SupabaseClient -->
+          <path class="uml-assoc" d="M700,136 L770,136" marker-end="url(#msg-arrow)"/>
+          <text x="735" y="128" text-anchor="middle" class="uml-msg"><tspan class="uml-msg-num">2:</tspan> rpc('spend_stat_point')</text>
+          <path class="uml-assoc" d="M770,164 L700,164" marker-end="url(#msg-arrow)"/>
+          <text x="735" y="182" text-anchor="middle" class="uml-msg"><tspan class="uml-msg-num">11:</tspan> {data, error}</text>
+
+          <!-- messages on link SupabaseClient to PostgREST -->
+          <path class="uml-assoc" d="M916,255 L916,325" marker-end="url(#msg-arrow)"/>
+          <text x="908" y="294" text-anchor="end" class="uml-msg"><tspan class="uml-msg-num">3:</tspan> HTTPS request + JWT</text>
+          <path class="uml-assoc" d="M944,325 L944,255" marker-end="url(#msg-arrow)"/>
+          <text x="952" y="294" text-anchor="start" class="uml-msg"><tspan class="uml-msg-num">10:</tspan> JSON response</text>
+
+          <!-- messages on link PostgREST to spend_stat_point -->
+          <path class="uml-assoc" d="M770,416 L700,416" marker-end="url(#msg-arrow)"/>
+          <text x="735" y="408" text-anchor="middle" class="uml-msg"><tspan class="uml-msg-num">4:</tspan> invoke as authenticated</text>
+          <path class="uml-assoc" d="M700,444 L770,444" marker-end="url(#msg-arrow)"/>
+          <text x="735" y="462" text-anchor="middle" class="uml-msg"><tspan class="uml-msg-num">9:</tspan> new stats/runes or error</text>
+
+          <!-- messages on link spend_stat_point to player_stats -->
+          <path class="uml-assoc" d="M342,392 L272,392" marker-end="url(#msg-arrow)"/>
+          <text x="307" y="384" text-anchor="middle" class="uml-msg"><tspan class="uml-msg-num">7:</tspan> UPDATE ... WHERE runes ≥ cost</text>
+          <path class="uml-assoc" d="M342,416 L272,416" marker-end="url(#msg-arrow)"/>
+          <text x="307" y="408" text-anchor="middle" class="uml-msg"><tspan class="uml-msg-num">5:</tspan> SELECT ... FOR UPDATE</text>
+          <path class="uml-assoc" d="M272,444 L342,444" marker-end="url(#msg-arrow)"/>
+          <text x="307" y="462" text-anchor="middle" class="uml-msg"><tspan class="uml-msg-num">6:</tspan> locked row value</text>
+          <path class="uml-assoc" d="M272,468 L342,468" marker-end="url(#msg-arrow)"/>
+          <text x="307" y="486" text-anchor="middle" class="uml-msg"><tspan class="uml-msg-num">8:</tspan> RETURNING new row</text>
+        </svg>
+      </div>
+      <div class="notes">
+        <div class="note gold">
+          <div class="bar"></div>
+          <div><b>Message 5 is the whole point of this diagram.</b> The next point's cost depends on the stat's <i>current</i> value, so it must be read before it's charged for. A plain <code>SELECT</code> first would let two concurrent calls both read the same pre-spend value and both pass a balance check against runes neither has actually paid. <code>SELECT ... FOR UPDATE</code> closes that race.</div>
+        </div>
+        <div class="note steel">
+          <div class="bar"></div>
+          <div>The client never supplies an amount (ADR-0003). <code>p_stat</code> selects <i>which</i> rule applies, and the RPC computes cost and validates the hard cap itself, server-side, every time.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FIGURE 6 — ACTIVITY -->
+    <section class="figure" id="fig-6">
+      <p class="fig-eyebrow">Figure 06a · Activity Diagram, Tactic Selection</p>
+      <h2 class="fig-title">Boss L2 Tactic Machine (one tick)</h2>
+      <p class="fig-desc">
+        This diagram was chosen because the boss AI's decision-making is
+        best understood as a workflow, and nothing else in the system has
+        comparable decision density. L2 runs <i>every</i> tick
+        unconditionally, before the stagger and posture gates, so intent
+        can shift mid-swing. The action-selection half of the same tick
+        continues in Figure 06b.
+      </p>
+      <div class="chips">
+        <span class="chip">bossCombat.ts (step)</span>
+        <span class="chip">tactics.ts (tickTactic)</span>
+        <span class="chip">actionSelection.ts (selectTopLevel, selectComboBranch)</span>
+      </div>
+      <div class="diagram-frame">
+        <pre class="mermaid">
+flowchart TD
+    Start(("●")) --> Decay("Passive per-tick decay of&lt;br/&gt;poise, posture, selection cooldowns")
+    Decay --> L2Start
+
+    subgraph L2["L2 Tactic Machine, runs every tick unconditionally"]
+        direction TB
+        L2Start{"Punishable opening&lt;br/&gt;AND cooldown == 0&lt;br/&gt;AND tactic != PUNISH?"}
+        L2Start -- yes --> SetPunish("Set tactic = PUNISH&lt;br/&gt;reset F5 cooldown")
+        L2Start -- no --> HoldCheck{"Hold timer expired?"}
+        HoldCheck -- no --> KeepTactic("Keep current tactic")
+        HoldCheck -- yes --> Softmax("Softmax pick over 5 tactics&lt;br/&gt;probabilistic, weights =&lt;br/&gt;BASE_SCORE × behaviorMod")
+        Softmax --> NewTactic("New tactic + new hold duration")
+    end
+
+    SetPunish --> Gate1
+    KeepTactic --> Gate1
+    NewTactic --> Gate1
+
+    Gate1{"staggerTicks > 0?"}
+    Gate1 -- yes --> WaitStagger("Decrement stagger, no action")
+    Gate1 -- no --> Gate2{"Posture critical window open?"}
+    Gate2 -- yes --> Frozen("Collapsed, frozen")
+    Gate2 -- no --> Gate3{"action == null, boss idle?"}
+    Gate3 --> L3Ref["Continue to L3 Action Selection&lt;br/&gt;see Figure 06b"]
+
+    WaitStagger --> End(("●"))
+    Frozen --> End
+        </pre>
+      </div>
+      <div class="notes">
+        <div class="note blood">
+          <div class="bar"></div>
+          <div>Standard UML decision nodes carry mutually-exclusive boolean guards. The softmax pick is <i>probabilistic</i>, since nothing about system state alone determines the branch, only a distribution does. It is labeled <i>probabilistic</i> rather than drawn like an ordinary <code>if</code>.</div>
+        </div>
+        <div class="note gold">
+          <div class="bar"></div>
+          <div>The tactic machine sits <i>before</i> the stagger and posture gates, so the boss can change intent while it is mid-swing or staggered. Only the resulting action waits on the animation.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FIGURE 6b — ACTIVITY, ACTION SELECTION -->
+    <section class="figure" id="fig-6b">
+      <p class="fig-eyebrow">Figure 06b · Activity Diagram, Action Selection</p>
+      <h2 class="fig-title">Boss L3 Action Selection (one tick)</h2>
+      <p class="fig-desc">
+        The second half of the same tick, entered from the idle gate at the
+        end of Figure 06a. Split into its own figure because one combined
+        diagram runs several pages tall and stops being readable.
+      </p>
+      <div class="chips">
+        <span class="chip">actionSelection.ts (selectTopLevel, selectComboBranch)</span>
+        <span class="chip">bossCombat.ts (step)</span>
+      </div>
+      <div class="diagram-frame">
+        <pre class="mermaid">
+flowchart TD
+    Entry(("●")) --> Gate3{"action == null, boss idle?"}
+
+    Gate3 -- no, mid-action --> AdvancePhase("Advance startup→active→recovery")
+    AdvancePhase --> RecoveryDone{"Recovery phase just finished?"}
+    RecoveryDone -- no --> EndTick1("End tick")
+    RecoveryDone -- yes --> ComboCheck{"Combo field AND&lt;br/&gt;chainDepth < maxChain?"}
+    ComboCheck -- yes --> ComboFilter("Filter combo.next links by&lt;br/&gt;range, cooldown, F8, condition")
+    ComboFilter --> ComboPick("Weighted pick + unclaimed&lt;br/&gt;'end sequence' mass, probabilistic")
+    ComboPick --> ComboResult{"Link picked?"}
+    ComboResult -- yes --> StartMove1("startMove, continue combo")
+    ComboResult -- no --> SeqEnd1("Sequence-end, start F2 gap")
+    ComboCheck -- no --> SeqEnd2("Sequence-end, start F2 gap")
+
+    Gate3 -- yes, idle --> RecoverCheck{"tactic == RECOVER?"}
+    RecoverCheck -- yes --> ApproachOnly("approach only,&lt;br/&gt;L3 skipped entirely")
+    RecoverCheck -- no --> GapCheck{"gapTicksRemaining > 0?"}
+    GapCheck -- yes --> ApproachOnly2("No action, approach")
+    GapCheck -- no --> EligFilter("Filter table by range, cooldown, F8")
+    EligFilter --> EligEmpty{"Eligible set empty?"}
+    EligEmpty -- yes --> ApproachOnly3("No action, approach")
+    EligEmpty -- no --> TacticMatch{"Any move tags match&lt;br/&gt;current tactic?"}
+    TacticMatch -- yes --> PoolMatched("pool = tactic-matched subset")
+    TacticMatch -- no --> PoolFallback("pool = full eligible set,&lt;br/&gt;documented fallback")
+    PoolMatched --> WeightedPick("Weighted pick over pool, probabilistic")
+    PoolFallback --> WeightedPick
+    WeightedPick --> StartMove2("startMove, fresh sequence")
+
+    EndTick1 --> End(("●"))
+    StartMove1 --> End
+    SeqEnd1 --> End
+    SeqEnd2 --> End
+    ApproachOnly --> End
+    ApproachOnly2 --> End
+    ApproachOnly3 --> End
+    StartMove2 --> End
+        </pre>
+      </div>
+      <div class="notes">
+        <div class="note blood">
+          <div class="bar"></div>
+          <div>When the active tactic is <code>RECOVER</code>, selection is skipped outright rather than run with a biased weighting. This is the one path that guarantees a smothered player a tick of relief.</div>
+        </div>
+        <div class="note steel">
+          <div class="bar"></div>
+          <div>If no eligible move carries a tag matching the current tactic, the pool falls back to the full eligible set rather than stalling. The fallback is a documented rule, not an accident.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FIGURE 7 — CLASS DIAGRAM -->
+    <section class="figure" id="fig-7">
+      <p class="fig-eyebrow">Figure 07a · Class Diagram, Domain / Runtime</p>
+      <h2 class="fig-title">In-Memory State for Combat, Boss AI, and the Scene</h2>
+      <p class="fig-desc">
+        The system follows a functional core, imperative shell design
+        (ADR-0001). State interfaces are modeled as classes with their real
+        fields and the pure functions that transform them as operations.
+        <code>GameBridge</code> and <code>CombatScene</code> are the two
+        real OOP classes and are drawn as themselves. This diagram covers
+        domain and runtime state. Persistence classes are shown separately
+        in Figure 07b.
+      </p>
+      <div class="chips">
+        <span class="chip">playerCombat.ts</span>
+        <span class="chip">bossCombat.ts</span>
+        <span class="chip">tactics.ts</span>
+        <span class="chip">actionSelection.ts</span>
+        <span class="chip">bridge.ts</span>
+        <span class="chip">CombatScene.ts</span>
+      </div>
+      <div class="diagram-frame">
+        <pre class="mermaid">
+classDiagram
+    class PlayerCombatState {
+        +x: number
+        +facing: 1 | -1
+        +hp: number
+        +stamina: number
+        +fp: number
+        +action: ActiveAction?
+        +poiseDamage: number
+        +staggerTicks: number
+        +ticksSinceStaminaSpend: number
+        +ticksSinceFpSpend: number
+        +projectiles: Projectile[]
+        +nextProjectileId: number
+        +createPlayerState(x, build?)$ PlayerCombatState
+        +step(state, input, ctx)$ StepResult
+        +poiseThreshold(build)$ number
+        +isStaggered(state)$ boolean
+        +isInvulnerable(state)$ boolean
+        +resolveIncomingHit(state, incoming, build)$ HitResolution
+    }
+
+    class Projectile {
+        +id: number
+        +x: number
+        +facing: 1 | -1
+        +ticksAlive: number
+        +damage: number
+    }
+
+    class StepContext {
+        +build: PlayerBuild
+        +minX: number
+        +maxX: number
+    }
+
+    class PlayerBuild {
+        +vitality: number
+        +dexterity: number
+        +intelligence: number
+    }
+
+    class BossCombatState {
+        +x: number
+        +facing: 1 | -1
+        +hp: number
+        +poiseDamage: number
+        +posture: PostureState
+        +action: BossActiveMove?
+        +staggerTicks: number
+        +selection: SelectionState
+        +tactic: TacticState
+        +tracker: TrackerState
+        +createBossState(x, seed)$ BossCombatState
+        +step(state, ctx)$ StepResult
+        +resolveBossHit(state, incoming)$ BossHitResolution
+        +isPunishableOpening(player, distance)$ boolean
+    }
+
+    class PostureState {
+        +value: number
+        +criticalTicks: number
+        +createPostureState()$ PostureState
+        +tickPosture(state)$ TickResult
+        +applyPostureDamage(state, amount)$ TickResult
+        +isCriticalWindowOpen(state)$ boolean
+    }
+
+    class TacticState {
+        +current: Tactic
+        +ticksInTactic: number
+        +holdTicks: number
+        +punishCooldown: number
+        +rng: RngState
+        +createTacticState(rng)$ TacticState
+        +tickTactic(state, getSignals, ctx)$ TacticDecision
+    }
+
+    class SelectionState {
+        +rng: RngState
+        +cooldowns: Record~string, number~
+        +chainDepth: number
+        +recentMoves: string[]
+        +gapTicksRemaining: number
+        +createSelectionState(rng)$ SelectionState
+        +selectTopLevel(table, ids, distance, state, weighting?)$ SelectionResult
+        +selectComboBranch(table, distance, lastMoveId, state, lastPlayerAction)$ SelectionResult
+    }
+
+    class TrackerState {
+        +buckets: Bucket[]
+        +cursor: number
+        +tickInBucket: number
+        +ticksSinceBossStartup: number
+        +createTracker()$ TrackerState
+        +trackTick(state, observed)$ TrackerState
+        +computeSignals(state)$ BehaviorSignals
+    }
+
+    class MoveDef {
+        &lt;&lt;reference data&gt;&gt;
+        +id: string
+        +tags: MoveTag[]
+        +tactics: Tactic[]
+        +rangeBand: [number, number]
+        +frames: FrameWindow
+        +tellFrames: number
+        +damage: number
+        +poiseDamage: number
+        +postureSelfRisk: number
+        +staminaCost: number
+        +combo: ComboDef?
+        +cooldownTicks: number
+        +comboOnly: boolean?
+    }
+
+    class GameBridge {
+        +toGame: TypedEmitter~ShellToGameEvents~
+        +toShell: TypedEmitter~GameToShellEvents~
+        +dispose() void
+    }
+
+    class CombatScene {
+        &lt;&lt;Phaser.Scene&gt;&gt;
+        -sim: PlayerCombatState
+        -boss: BossCombatState
+        -ctx: StepContext
+        -bossCtx: BossStepContext
+        -bridge: GameBridge?
+        -hitstopMs: number
+        -deathAnimMs: number
+        -finished: boolean
+        -ready: boolean
+        +preload() void
+        +create() void
+        +update(time, delta) void
+        -startFight(payload) void
+        -resolvePlayerAttackOnBoss(attackId) void
+        -resolveBossAttackOnPlayer(move) void
+        -reportOutcome(result) void
+    }
+
+    PlayerCombatState "1" *-- "0..*" Projectile
+    BossCombatState "1" *-- "1" PostureState
+    BossCombatState "1" *-- "1" TacticState
+    BossCombatState "1" *-- "1" SelectionState
+    BossCombatState "1" *-- "1" TrackerState
+    StepContext "1" o-- "1" PlayerBuild
+
+    PlayerCombatState ..> StepContext : step(state, input, ctx)
+    SelectionState ..> MoveDef : selects
+
+    CombatScene "1" o-- "1" PlayerCombatState
+    CombatScene "1" o-- "1" BossCombatState
+    CombatScene "1" --> "1" GameBridge
+    CombatScene ..> StepContext : owns ctx
+        </pre>
+      </div>
+      <div class="notes">
+        <div class="note blood">
+          <div class="bar"></div>
+          <div><code>PlayerCombatState</code> has no <code>build</code> field. The player build is passed through the separate <code>StepContext</code> parameter object as a dependency, and is never stored directly on <code>PlayerCombatState</code>.</div>
+        </div>
+        <div class="note gold">
+          <div class="bar"></div>
+          <div>No relationship is drawn between <code>BossCombatState</code> and <code>PlayerBuild</code>. The boss's step function never reads the player's stat build.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="figure" id="fig-7b">
+      <p class="fig-eyebrow">Figure 07b · Class Diagram, Persistence</p>
+      <h2 class="fig-title">Postgres Tables and Their Real Multiplicities</h2>
+      <p class="fig-desc">
+        Multiplicities are read directly from the database constraints
+        rather than assumed.
+      </p>
+      <div class="chips">
+        <span class="chip">supabase/migrations/*.sql</span>
+      </div>
+      <div class="diagram-frame">
+        <pre class="mermaid">
+classDiagram
+    class AuthUser {
+        &lt;&lt;Postgres, auth.users&gt;&gt;
+        +id: uuid
+    }
+    class PlayerStats {
+        &lt;&lt;table&gt;&gt;
+        +user_id: uuid  PK/FK
+        +vitality: integer
+        +dexterity: integer
+        +intelligence: integer
+        +runes: bigint
+        +updated_at: timestamptz
+    }
+    class PlayerProgress {
+        &lt;&lt;table&gt;&gt;
+        +user_id: uuid  PK/FK
+        +current_region: region_id
+        +regions_cleared: region_id[]
+        +updated_at: timestamptz
+    }
+    class PlayerBuildRow {
+        &lt;&lt;table, player_builds&gt;&gt;
+        +id: uuid  PK
+        +user_id: uuid  FK
+        +weapon_id: text
+        +is_active: boolean
+        +created_at: timestamptz
+    }
+    class AttemptLog {
+        &lt;&lt;table, attempt_logs&gt;&gt;
+        +id: uuid  PK
+        +user_id: uuid  FK
+        +boss_id: text
+        +result: text
+        +duration_ticks: integer
+        +rune_delta: integer
+        +region_unlocked: boolean
+        +log: jsonb
+        +created_at: timestamptz
+    }
+    class Boss {
+        &lt;&lt;table, bosses&gt;&gt;
+        +id: text  PK
+        +region_id: region_id
+        +rune_reward: integer
+    }
+
+    AuthUser "1" -- "0..1" PlayerStats
+    AuthUser "1" -- "0..1" PlayerProgress
+    AuthUser "1" -- "0..*" PlayerBuildRow
+    AuthUser "1" -- "0..*" AttemptLog
+    AttemptLog "0..*" --> "1" Boss : boss_id «not FK-enforced»
+        </pre>
+      </div>
+      <div class="notes">
+        <div class="note blood">
+          <div class="bar"></div>
+          <div><code>AttemptLog</code> references <code>Boss</code> through <code>boss_id</code>, but no foreign key exists at the database level. The value is validated only inside <code>resolve_attempt</code>, not by Postgres, so the relationship is stereotyped <code>«not FK-enforced»</code>.</div>
+        </div>
+        <div class="note gold">
+          <div class="bar"></div>
+          <div><code>AuthUser</code> to <code>PlayerStats</code> and <code>PlayerProgress</code> are <b>0..1</b> relationships, not <b>1</b>, since provisioning happens through an application-level trigger rather than a schema guarantee. A backfill migration exists because pre-trigger accounts once had zero.</div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      Source content for every figure lives in
+      <code style="font-family: var(--mono)">docs/uml/</code> in the
+      repository. This page is a rendered view of that content.
+    </footer>
+  </main>
+</div>
+
+<script>
+  (function () {
+    var links = Array.prototype.slice.call(
+      document.querySelectorAll('#toc a[href^="#"]'),
+    );
+    var sections = links
+      .map(function (a) {
+        return document.querySelector(a.getAttribute('href'));
+      })
+      .filter(Boolean);
+
+    if (!('IntersectionObserver' in window) || sections.length === 0) return;
+
+    var byId = {};
+    links.forEach(function (a) {
+      byId[a.getAttribute('href').slice(1)] = a;
+    });
+
+    var observer = new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (entry) {
+          var link = byId[entry.target.id];
+          if (!link) return;
+          if (entry.isIntersecting) {
+            links.forEach(function (l) {
+              l.classList.remove('active');
+            });
+            link.classList.add('active');
+          }
+        });
+      },
+      { rootMargin: '-10% 0px -70% 0px', threshold: 0 },
+    );
+
+    sections.forEach(function (s) {
+      observer.observe(s);
+    });
+  })();
+</script>
+
+<!-- Standalone-doc addition: the published Artifact renders <pre class="mermaid">
+     blocks via the platform's own built-in Mermaid support. Opened as a plain
+     file, this page needs to load Mermaid itself — done here via CDN (pinned
+     to an exact version), themed to match this page's own CSS palette
+     (:root above) rather than Mermaid's generic stock colors. -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.16.1/dist/mermaid.min.js"></script>
+<script>
+  (function () {
+    // Always the light palette (this page's default :root), not an
+    // auto-detected one — window.matchMedia('prefers-color-scheme: dark')
+    // is unreliable in headless/automated rendering (it reported dark even
+    // when this same page's own CSS cascade resolved light), which produced
+    // near-black diagram fills while the surrounding page stayed light.
+    var palette = {
+      bg: '#efe7d3', raised: '#e3dac3', ink: '#221d17', inkDim: '#52493c',
+      card: '#f7f2e4', code: '#e6dcc2', line: '#cdc2a4',
+      gold: '#9a730c', blood: '#6b2a3a', steel: '#33488f',
+    };
+
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'base',
+      themeVariables: {
+        background: palette.bg,
+        fontFamily: '-apple-system, system-ui, sans-serif',
+
+        primaryColor: palette.raised,
+        primaryTextColor: palette.ink,
+        primaryBorderColor: palette.gold,
+        secondaryColor: palette.code,
+        secondaryTextColor: palette.ink,
+        secondaryBorderColor: palette.line,
+        tertiaryColor: palette.card,
+        tertiaryTextColor: palette.ink,
+        tertiaryBorderColor: palette.line,
+        lineColor: palette.inkDim,
+        textColor: palette.ink,
+        mainBkg: palette.raised,
+        nodeBorder: palette.gold,
+        clusterBkg: palette.card,
+        clusterBorder: palette.line,
+        titleColor: palette.ink,
+        edgeLabelBackground: palette.card,
+
+        classText: palette.ink,
+
+        actorBkg: palette.raised,
+        actorBorder: palette.gold,
+        actorTextColor: palette.ink,
+        actorLineColor: palette.inkDim,
+        signalColor: palette.inkDim,
+        signalTextColor: palette.ink,
+        labelBoxBkgColor: palette.code,
+        labelBoxBorderColor: palette.line,
+        labelTextColor: palette.ink,
+        loopTextColor: palette.ink,
+        noteBkgColor: palette.code,
+        noteBorderColor: palette.line,
+        noteTextColor: palette.ink,
+        activationBkgColor: palette.raised,
+        activationBorderColor: palette.gold,
+        sequenceNumberColor: palette.card,
+
+        fillType0: palette.raised,
+        fillType1: palette.code,
+        fillType2: palette.card,
+        fillType3: palette.raised,
+
+        errorBkgColor: palette.blood,
+        errorTextColor: palette.card,
+      },
+      flowchart: { useMaxWidth: true, curve: 'basis' },
+      sequence: { useMaxWidth: true },
+      class: { useMaxWidth: true },
+    });
+  })();
+</script>
+</body>
+</html>
