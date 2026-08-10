@@ -1182,12 +1182,80 @@ classDiagram
 
 <!-- Standalone-doc addition: the published Artifact renders <pre class="mermaid">
      blocks via the platform's own built-in Mermaid support. Opened as a plain
-     file, this page needs to load Mermaid itself — done here via CDN with the
-     library's default theme (no custom colors), matching what the platform
-     renders. -->
-<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+     file, this page needs to load Mermaid itself — done here via CDN (pinned
+     to an exact version), themed to match this page's own CSS palette
+     (:root above) rather than Mermaid's generic stock colors. -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.16.1/dist/mermaid.min.js"></script>
 <script>
-  mermaid.initialize({ startOnLoad: true, theme: 'default' });
+  (function () {
+    // Always the light palette (this page's default :root), not an
+    // auto-detected one — window.matchMedia('prefers-color-scheme: dark')
+    // is unreliable in headless/automated rendering (it reported dark even
+    // when this same page's own CSS cascade resolved light), which produced
+    // near-black diagram fills while the surrounding page stayed light.
+    var palette = {
+      bg: '#efe7d3', raised: '#e3dac3', ink: '#221d17', inkDim: '#52493c',
+      card: '#f7f2e4', code: '#e6dcc2', line: '#cdc2a4',
+      gold: '#9a730c', blood: '#6b2a3a', steel: '#33488f',
+    };
+
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'base',
+      themeVariables: {
+        background: palette.bg,
+        fontFamily: '-apple-system, system-ui, sans-serif',
+
+        primaryColor: palette.raised,
+        primaryTextColor: palette.ink,
+        primaryBorderColor: palette.gold,
+        secondaryColor: palette.code,
+        secondaryTextColor: palette.ink,
+        secondaryBorderColor: palette.line,
+        tertiaryColor: palette.card,
+        tertiaryTextColor: palette.ink,
+        tertiaryBorderColor: palette.line,
+        lineColor: palette.inkDim,
+        textColor: palette.ink,
+        mainBkg: palette.raised,
+        nodeBorder: palette.gold,
+        clusterBkg: palette.card,
+        clusterBorder: palette.line,
+        titleColor: palette.ink,
+        edgeLabelBackground: palette.card,
+
+        classText: palette.ink,
+
+        actorBkg: palette.raised,
+        actorBorder: palette.gold,
+        actorTextColor: palette.ink,
+        actorLineColor: palette.inkDim,
+        signalColor: palette.inkDim,
+        signalTextColor: palette.ink,
+        labelBoxBkgColor: palette.code,
+        labelBoxBorderColor: palette.line,
+        labelTextColor: palette.ink,
+        loopTextColor: palette.ink,
+        noteBkgColor: palette.code,
+        noteBorderColor: palette.line,
+        noteTextColor: palette.ink,
+        activationBkgColor: palette.raised,
+        activationBorderColor: palette.gold,
+        sequenceNumberColor: palette.card,
+
+        fillType0: palette.raised,
+        fillType1: palette.code,
+        fillType2: palette.card,
+        fillType3: palette.raised,
+
+        errorBkgColor: palette.blood,
+        errorTextColor: palette.card,
+      },
+      flowchart: { useMaxWidth: true, curve: 'basis' },
+      sequence: { useMaxWidth: true },
+      class: { useMaxWidth: true },
+    });
+  })();
 </script>
 </body>
 </html>
