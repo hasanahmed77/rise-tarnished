@@ -280,7 +280,129 @@ open art question is updated to record this.
   the visual pass's feel-checks.
 
 ## Review (end of sprint)
-_(pending)_
+
+**Goal met.** The fight is no longer coloured rectangles. A knight with a real
+sword fights a visibly larger, horned Margit in a moonlit Stormveil arena, and
+every combat state the engine already tracked — tell, active window, recovery,
+stagger, posture break, death — now reads as a distinct pose. Epic #42 closed
+with all three committed parts merged.
+
+Delivered (committed scope):
+- **#42 part 1** (#46) — a dependency-free pixel toolkit and generator
+  (`scripts/lib/pixel.mjs`, `scripts/generate-sprites.mjs`) producing the player
+  sheet, Margit's sheet, slash VFX and four parallax layers. CombatScene swapped
+  from rectangles to sprites, with every frame selected from state the sim
+  already exposes and slash VFX fired off the sim's own `attack:active` event so
+  they cannot drift from the hitbox.
+- **#42 part 2a** (#49) — a distinct tell and active pose for all eight of
+  Margit's moves, keyed by `MoveDef.id`, so the L3 AI's real move variety is
+  visible instead of every move sharing one windup and one swing.
+- **#42 part 2b** (#50) — hitstop weighted by hit severity, and a two-beat death
+  sequence at zero new art cost. Both are timed off wall-clock rather than ticks,
+  so no fairness invariant (F1-F8) changes meaning.
+
+Delivered (unplanned, taken on mid-sprint):
+- **#48** — the PRESSURE/RECOVER feedback-loop fix. See the breach note below.
+- **#51** (#52) — ten generated combat SFX and a 32-second ambient loop, with
+  `soundManifest.ts` as the contract and ambience asserted quieter than every
+  SFX by test.
+- **#47**, **#53** — the project status presentation and the full UML diagram
+  set. Course deliverables, not product scope.
+
+191 unit tests, up from 147 at sprint start. Full gate green on every merge.
+
+**The Definition of Done was breached, deliberately.** This sprint's DoD opened
+with *"No combat-logic change: `playerCombat.ts` / `bossCombat.ts` / the frame
+data untouched."* #48 changed `bossCombat.ts`, `tactics.ts`, `actionSelection.ts`
+and `margitMoves.ts`. That was the right call — the playtest note driving it
+("Margit is attacking constantly and not giving me a single chance") described a
+fight that was not playable, and shipping a beautiful unplayable fight would have
+been the worse outcome. But it is recorded here as a breach rather than quietly
+absorbed. The constraint existed to stop an art sprint from turning into a
+balance sprint, and three days in, it half did. `playerCombat.ts` and the frame
+data did survive untouched, so the blast radius stayed on the boss side.
+
+Not in scope / deferred: **#13** (post-death LLM recap — now the *last* unshipped
+line in PRD §6's MVP list), #14 (bot harness), #20 (input buffering), the settings
+surface that both the screenshake toggle and the audio mute still need, and the
+remaining three regions' backdrops.
+
+Backlog correction made at close-out: **#40** (sorcery) was verified complete and
+closed — its Sprint 6 checkbox was simply never ticked. **#12** (stat spend) was
+*not* closed: its code shipped in Sprint 6, but its final acceptance criterion, a
+`docs/playtests/` note proving all three archetypes clear Margit, remains unmet.
+See the retro.
 
 ## Retro (end of sprint)
-_(pending)_
+
+**What worked**
+
+- **Playtest feedback found three real bugs that no test and no static review
+  would have caught — and all three were the same class.** Margit striking the
+  ground instead of the player, her hit landing from further away than her cane
+  reached, and the boss never letting up were each a *mismatch between what the
+  sim computes and what the screen shows*. Every one was invisible while
+  reviewing sprite sheets in isolation and obvious the moment the sprite was
+  composited against a player standing at the move's true range. This is now the
+  documented default for any future art work: **review poses against the hitbox,
+  never on their own.**
+- **The generalised fix beat the per-case fix.** The reach mismatch spanned eight
+  moves from 80px to 260px. Drawing a bespoke pose per move would have fixed the
+  eight that exist and silently broken the ninth; stretching the strike streak to
+  `move.rangeBand[1]` — the same number `resolveBossAttackOnPlayer` tests against
+  — makes visual reach equal hit reach for every move automatically, including
+  ones added later. Guarded by a test that fails if any move outgrows the streak.
+- **#48's first hypothesis was wrong, and tracing rather than guessing caught
+  that.** The initial theory was that #9's tactic layer had never been wired up.
+  L2 was fully implemented and `RECOVER` already did exactly the right thing. The
+  actual cause — PRESSURE scoring higher the *less* the player attacked, so being
+  suppressed made the boss press harder — would have been missed entirely by
+  fixing the thing that looked broken.
+- **#48 turned out to be code diverging from its own spec.** BOSS_AI.md §5's
+  signal table already said `aggression` drives RECOVER and `turtleIndex` drives
+  PRESSURE. The fix moved the term to where the spec had always put it. Worth
+  checking the spec *first* next time a tuning value feels wrong.
+- **Tuning by measurement, not by feel.** The first attempt at #48 overcorrected
+  and handed RECOVER 75% of the fight — trading "never lets up" for "barely
+  fights". The final bands (~30% RECOVER when smothered, ~7% when the player is
+  landing hits, ~90% PRESSURE against a turtler) are asserted *with ceilings*, so
+  both failure modes fail CI rather than only the one that was noticed.
+
+**What didn't**
+
+- **Scope discipline.** The sprint committed to three art items and shipped
+  seven things. #48 was genuinely urgent and #47/#53 were externally driven
+  course deliverables, but #51 (audio) was a whole extra discipline picked up
+  voluntarily, in a sprint whose own "Out of scope (explicitly)" section listed
+  *"Audio. Not mentioned in #42 and a separate discipline."* Nothing was dropped
+  to make room, which means the estimate was never tested.
+- **Verification debt is compounding, and it is now blocking a real acceptance
+  criterion.** Two of this sprint's deliverables shipped without being checked
+  against their actual quality bar: the audio was verified as non-silent,
+  non-clipping and reachable over HTTP, but nobody has *heard* it; the visual
+  feel-check still needs a signed-in in-engine session that has not happened.
+  This is the same blocker Sprint 6 closed on, and it has not moved — **#12's
+  last acceptance criterion, a `docs/playtests/` note proving dex/vit/int all
+  clear Margit, is still unmet, and that directory still does not exist.** That
+  issue therefore stays open at the end of Sprint 7 despite its code being
+  complete since Sprint 6. PRD §5's S2 and S3 have the same shape and the same
+  blocker. None of it can be discharged from inside the repo, and it is now
+  three sprints deep.
+- **This retro is being written a day late, and Sprint 6's is still empty.** Two
+  consecutive sprints closed without their review written at the time. The daily
+  check-ins are excellent and did most of the remembering here — but they are a
+  log, not a retrospective, and the DoD breach above went unremarked for a week
+  because nobody stopped to re-read the DoD.
+
+**Actions into Sprint 8**
+
+1. Backfill Sprint 6's review/retro, or explicitly mark it closed-without-retro.
+   Leaving `_(pending)_` in the repo is the worst of both.
+2. Book five playtesters before Sprint 8's midpoint, and create `docs/playtests/`
+   with the dex/vit/int note that closes #12. S2 and S3 are the only two success
+   criteria that cannot be satisfied by writing code, #12 has been waiting on
+   exactly this since Sprint 6, and #13 lands straight into S3.
+3. Re-read the DoD at each merge, not only when writing it.
+4. Give the settings surface a ticket. It has now been deferred twice (screenshake
+   in #42, mute in #51) and both features currently ship as undiscoverable
+   keypresses.
