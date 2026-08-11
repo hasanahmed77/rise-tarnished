@@ -388,16 +388,20 @@ See the retro.
   complete since Sprint 6. PRD §5's S2 and S3 have the same shape and the same
   blocker. None of it can be discharged from inside the repo, and it is now
   three sprints deep.
-- **This retro is being written a day late, and Sprint 6's is still empty.** Two
-  consecutive sprints closed without their review written at the time. The daily
-  check-ins are excellent and did most of the remembering here — but they are a
-  log, not a retrospective, and the DoD breach above went unremarked for a week
-  because nobody stopped to re-read the DoD.
+- **This retro is being written a day late, and Sprint 6's was written thirteen
+  days late, in the same sitting.** Two consecutive sprints closed without their
+  review written at the time. The daily check-ins are excellent and did most of
+  the remembering for both — but they are a log, not a retrospective, and the DoD
+  breach above went unremarked for a week because nobody stopped to re-read the
+  DoD. Sprint 6's retro found the root cause: its plan and Sprint 7's plan merged
+  on the same day, so there was never a moment at which Sprint 6 was "closing".
 
 **Actions into Sprint 8**
 
-1. Backfill Sprint 6's review/retro, or explicitly mark it closed-without-retro.
-   Leaving `_(pending)_` in the repo is the worst of both.
+1. ~~Backfill Sprint 6's review/retro.~~ **Done** — written 2026-08-11 in the
+   same sitting as this one, and flagged in-file as retrospective. It found that
+   Sprint 6 overran by five days and was never closed because Sprint 7's plan
+   merged the same day its last PR did.
 2. Book five playtesters before Sprint 8's midpoint, and create `docs/playtests/`
    with the dex/vit/int note that closes #12. S2 and S3 are the only two success
    criteria that cannot be satisfied by writing code, #12 has been waiting on
