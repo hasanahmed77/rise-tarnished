@@ -5,6 +5,8 @@
 //
 // These are the v1 stubs; the contract grows via PR as features land.
 
+import type { DecisionEvent } from './boss/decisionLog';
+
 export interface PlayerBuild {
   vitality: number;
   dexterity: number;
@@ -22,6 +24,15 @@ export interface FightOutcome {
    * the persisted amount. The shell must call the resolve_attempt RPC for
    * the authoritative reward; this is never sent to that RPC as an amount. */
   estimatedRuneDelta: number;
+  /**
+   * The boss's own L2/L3 decisions for this attempt (#55, BOSS_AI.md §8), in
+   * tick order, for the shell to persist via `resolve_attempt(p_log)`.
+   *
+   * Telemetry, never authority: like `estimatedRuneDelta`, nothing here is
+   * trusted to compute a reward. It is written to `attempt_logs.log` so #13's
+   * recap has something true to be specific about.
+   */
+  decisionLog: DecisionEvent[];
 }
 
 /** React → Phaser */

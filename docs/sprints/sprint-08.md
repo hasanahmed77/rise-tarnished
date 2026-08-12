@@ -31,7 +31,7 @@ the larger half of this sprint.
 
 ## Committed scope
 
-- [ ] **#55** Per-decision event log into `attempt_logs.log` — size M, p1
+- [x] **#55** Per-decision event log into `attempt_logs.log` — size M, p1
       *L2/L3 emit `{tick, layer, chose, becauseSignals, playerStateSnapshot}`
       per BOSS_AI.md §8, bounded to decisions rather than ticks, persisted
       through a new `p_log jsonb` parameter on `resolve_attempt`. Deterministic,
@@ -154,7 +154,56 @@ testable at this sprint's close:
 
 ## Daily check-ins
 
-_(none yet)_
+- **08-12:** #55 built — the per-decision event log, closing #13's
+  prerequisite. `decisionLog.ts` defines the §8 event shape and a
+  `topContributions()` ranker (top-2 by distance from neutral, suppression
+  ranked equally with amplification, ties broken by signal name so ranking
+  stays byte-reproducible). `behaviorMod` (L3, `weighting.ts`) and
+  `tacticBehaviorMod` (L2, `tactics.ts`) were each split into one detailed
+  function that reports contributions plus a thin `.mod`-only accessor over
+  it — one expression, two readers — specifically so a future tuning edit
+  can't let the logged reason drift from the score that actually won. Both
+  scoring paths pin bit-identical output against pre-refactor behavior via
+  `tactics.test.ts`'s existing tuned-share assertions and a new
+  `behaviorModDetailed().mod === behaviorMod()` pin across the whole move
+  table.
+  <br><br>
+  `BossEvent`'s existing `move:start` / `tactic:change` events now carry
+  `because`, so no new event type or decision seam was introduced — CombatScene
+  reads it and appends into a per-attempt log, stamping the tick and a player
+  snapshot (hp/stamina/distance/action) the boss sim itself is not allowed to
+  see, since the boss AI reads player *behaviour*, never player stats. Bounded
+  by construction: logging on decisions rather than ticks means a 3-minute
+  fight produces tens of entries, not ~10,800 — asserted directly
+  (`decisionLog.test.ts` drives a real 10,800-tick fight through `bossCombat.step`
+  and checks the count), with `MAX_LOGGED_DECISIONS` (400) as the backstop for
+  a pathological attrition fight.
+  <br><br>
+  `resolve_attempt` gained a `p_log jsonb default '{}'` parameter
+  (`20260811120000_resolve_attempt_log.sql`) rather than being replaced in
+  place — a signature change needs `DROP` then `CREATE`, since `CREATE OR
+  REPLACE` would leave the old 4-arg function callable alongside the new one
+  and an in-flight 4-arg call would then be ambiguous between them. The reward
+  logic is byte-identical to the prior migration; the only additions are the
+  parameter, a sanitising block, and `log` in the INSERT list. Untrusted input
+  gets three protections, all because this column will later feed a model:
+  only a `decisions` key survives (everything else a client sends is
+  dropped), a non-array `decisions` is discarded rather than stored malformed,
+  and an oversized array (>1000) is replaced with a `{truncated: true}`
+  marker — truncating rather than raising, deliberately, so a telemetry defect
+  can never cost a player the reward the same call pays. The existing
+  idempotency guard extends to the log for free: a retried call's `on conflict
+  do nothing` means the first-recorded decisions win, same as every other
+  field.
+  <br><br>
+  11 new unit tests (202 total, up from 191) plus 6 new RLS/RPC tests (33
+  total) run against real local Postgres, including the truncation and
+  retry-cannot-overwrite cases. `fairness.property.test.ts` passes unchanged.
+  Full gate green (lint/typecheck/test/format), `npm run test:rls` green
+  against a fresh `supabase db reset`. Docs: BOSS_AI.md §8's status line
+  flipped from spec-only to shipped, and ADR-0003 gained a bullet on telemetry
+  parameters degrading rather than failing — a deliberate contrast with every
+  other rule in that list, which is about state-mutating parameters raising.
 
 ## Review (end of sprint)
 _(pending)_

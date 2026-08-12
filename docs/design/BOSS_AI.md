@@ -256,17 +256,29 @@ authoring target and the template that proves the schema.
 
 ## 8. Observability & the post-death recap
 
-**Status (`#11`):** the attempt row itself (boss id, result, duration, rune
-reward) is real — persisted via `resolve_attempt`, one row per fight. The
-per-decision event log described below (`attempt_logs.log jsonb`) is still
-the spec, not yet collected; it stays `{}` until the L2/L3 decision points
-actually emit into it. That's `#13`'s prerequisite, not `#11`'s.
+**Status (`#55`, shipped):** both halves are real now. The attempt row (boss
+id, result, duration, rune reward) has been persisted via `resolve_attempt`
+since `#11`. The per-decision event log below is collected too: L2 (`tactics.ts`)
+and L3 (`actionSelection.ts`) each report the top-2 signals behind a decision
+through the same expression that computes its score (`decisionLog.ts`,
+`weighting.ts`), CombatScene accumulates them per attempt (stamping the tick
+and the player snapshot the boss sim itself cannot see), and
+`resolve_attempt`'s new `p_log` parameter persists them into
+`attempt_logs.log`, sanitised server-side against untrusted input. `#13`'s
+prerequisite is closed.
 
-Every L2/L3 decision emits a structured event to the attempt log:
+Every L2/L3 decision that actually changes intent emits a structured event to
+the attempt log (a re-score that holds the same tactic emits nothing — this is
+what keeps the log at tens of entries per fight rather than one per tick):
 
 ```ts
-{ tick, layer: "tactic"|"action", chose: id, becauseSignals: {...top-2 contributing signals}, playerStateSnapshot }
+{ tick, layer: "tactic"|"action", chose: id, becauseSignals: [...top-2 contributing signals], playerStateSnapshot }
 ```
+
+`becauseSignals` is empty, honestly, for the two decision kinds that are not
+signal-scored: a `PUNISH` tactic entry (trigger + F5 gate, never scored) and a
+combo-branch continuation (authored link weights, not behavior weights).
+`#13`'s recap must not paper over that gap by inventing a reason.
 
 This gives us, for free:
 1. **The LLM recap's raw material** — "you died to `margit.delayed_overhead`,

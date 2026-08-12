@@ -47,6 +47,7 @@ import {
 import type { PlayerCombatState } from '../combat/playerCombat';
 import { createTacticState, tickTactic, type TacticState } from './tactics';
 import type { WeightRule } from './weighting';
+import type { SignalContribution } from './decisionLog';
 import type { MoveDef, MoveTable, PlayerActionTag, Tactic } from './types';
 
 export type BossPhase = 'startup' | 'active' | 'recovery';
@@ -116,21 +117,30 @@ export interface BossStepContext {
 }
 
 export type BossEvent =
-  | { type: 'move:start'; moveId: string }
+  /** An L3 decision. `because` carries the §8 reason (#55) — empty for a combo
+   * continuation, whose weights are authored rather than signal-driven. */
+  | { type: 'move:start'; moveId: string; because: SignalContribution[] }
   | { type: 'move:active'; moveId: string; move: MoveDef }
   | { type: 'move:end'; moveId: string }
   | { type: 'stagger:start' }
   | { type: 'stagger:end' }
   | { type: 'posture:break' }
   | { type: 'posture:recovered' }
-  | { type: 'tactic:change'; tactic: Tactic };
+  /** An L2 decision. `because` is empty for a PUNISH trigger, which is entered
+   * from an opening rather than scored. */
+  | { type: 'tactic:change'; tactic: Tactic; because: SignalContribution[] };
 
-function startMove(state: BossCombatState, moveId: string, events: BossEvent[]): void {
+function startMove(
+  state: BossCombatState,
+  moveId: string,
+  because: SignalContribution[],
+  events: BossEvent[],
+): void {
   state.action = { moveId, phase: 'startup', tickInPhase: 0 };
   // Rolls in the next PANIC_ROLL_WINDOW ticks count as reflex-rolls — the
   // dodgeReflex signal's raw material.
   state.tracker = noteBossStartup(state.tracker);
-  events.push({ type: 'move:start', moveId });
+  events.push({ type: 'move:start', moveId, because });
 }
 
 /**
@@ -191,7 +201,12 @@ export function step(
     punishableOpening: ctx.observed.punishableOpening,
   });
   state.tactic = tacticDecision.state;
-  if (tacticDecision.changed) events.push({ type: 'tactic:change', tactic: state.tactic.current });
+  if (tacticDecision.changed)
+    events.push({
+      type: 'tactic:change',
+      tactic: state.tactic.current,
+      because: tacticDecision.because,
+    });
 
   if (state.staggerTicks > 0) {
     state.staggerTicks -= 1;
@@ -219,7 +234,7 @@ export function step(
     });
     state.selection = result.state;
     if (result.kind === 'move') {
-      startMove(state, result.moveId, events);
+      startMove(state, result.moveId, result.because, events);
     } else {
       approach(state, ctx, distance);
     }
@@ -276,7 +291,7 @@ export function step(
   state.selection = branch.state;
 
   if (branch.kind === 'move') {
-    startMove(state, branch.moveId, events);
+    startMove(state, branch.moveId, branch.because, events);
   } else {
     approach(state, ctx, distance);
   }

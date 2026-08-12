@@ -11,6 +11,8 @@
 import { TICKS_PER_SECOND } from '../combat/frameData';
 import { nextRandom, type RngState } from './rng';
 import type { BehaviorSignals } from './behaviorTracker';
+import type { SignalContribution, WeightedModResult } from './decisionLog';
+import { topContributions } from './decisionLog';
 import type { Tactic } from './types';
 
 /** F5 — max one triggered punish per 4 seconds. */
@@ -76,11 +78,23 @@ const BASE_SCORE: Record<ScoredTactic, number> = {
  * score. Clamped to [0.25, 4] (F4). The table is data so tuning is a data
  * change with a unit test.
  */
-function tacticBehaviorMod(tactic: ScoredTactic, s: BehaviorSignals, ctx: TacticContext): number {
+function tacticBehaviorModDetailed(
+  tactic: ScoredTactic,
+  s: BehaviorSignals,
+  ctx: TacticContext,
+): WeightedModResult {
   let mod = 1;
+  const contributions: SignalContribution[] = [];
+  /** Apply one term and record it. Every `mod *=` below goes through here, so
+   * the log cannot describe a term the score didn't actually apply (#55). */
+  const apply = (signal: string, value: number, effect: number) => {
+    mod *= effect;
+    contributions.push({ signal, value, effect });
+  };
+
   switch (tactic) {
     case 'PRESSURE':
-      mod *= 1 + s.turtleIndex * 2; // turtling invites pressure
+      apply('turtleIndex', s.turtleIndex, 1 + s.turtleIndex * 2); // turtling invites pressure
       // NOTE: deliberately does NOT escalate on low `aggression`. It used to
       // (`1 + (1 - aggression) * 0.5`) and that closed a feedback loop against
       // the player: no opening → attack rate falls → aggression falls →
@@ -93,14 +107,31 @@ function tacticBehaviorMod(tactic: ScoredTactic, s: BehaviorSignals, ctx: Tactic
       // rangeCamping loop called out in bossCombat.ts's TACTIC_TARGET_RANGE.
       break;
     case 'BAIT':
-      mod *= 1 + s.dodgeReflex * 3; // panic-rollers get baited
+      apply('dodgeReflex', s.dodgeReflex, 1 + s.dodgeReflex * 3); // panic-rollers get baited
       break;
     case 'REPOSITION':
-      mod *= 1 + s.rangeCamping * 2.5; // campers get closed down
-      if (ctx.distance > 160) mod *= 1.5;
+      apply('rangeCamping', s.rangeCamping, 1 + s.rangeCamping * 2.5); // campers get closed down
+      if (ctx.distance > 160) apply('distance', ctx.distance, 1.5);
       break;
-    case 'RECOVER':
-      mod *= 1 + ctx.bossPoiseFraction * 1.5 + ctx.bossPostureFraction * 1.5;
+    case 'RECOVER': {
+      // ONE factor over a SUM of the two damage terms — not two factors. Split
+      // into `apply` calls per term this would become (1+a)(1+b) and silently
+      // re-tune the boss, so the shared factor is applied once and the two
+      // terms are attributed individually for ranking only.
+      const damageTaken = 1 + ctx.bossPoiseFraction * 1.5 + ctx.bossPostureFraction * 1.5;
+      mod *= damageTaken;
+      contributions.push(
+        {
+          signal: 'bossPoise',
+          value: ctx.bossPoiseFraction,
+          effect: 1 + ctx.bossPoiseFraction * 1.5,
+        },
+        {
+          signal: 'bossPosture',
+          value: ctx.bossPostureFraction,
+          effect: 1 + ctx.bossPostureFraction * 1.5,
+        },
+      );
       // The mirror of PRESSURE's removed term, and the reason the fight has a
       // pulse: when the player's attack rate is low, the boss eases off and
       // gives them room. Gating relief solely on damage the boss has taken
@@ -108,19 +139,30 @@ function tacticBehaviorMod(tactic: ScoredTactic, s: BehaviorSignals, ctx: Tactic
       // already winning — exactly backwards when a player is being smothered.
       // Self-correcting: land hits and aggression climbs, this term decays,
       // and pressure returns on its own.
-      mod *= 1 + (1 - s.aggression) * 1.0;
+      apply('aggression', s.aggression, 1 + (1 - s.aggression) * 1.0);
       break;
+    }
     case 'NEUTRAL':
-      mod *= 1 + s.dodgeTiming * 0.5; // good dodgers get a faster reset pace
+      apply('dodgeTiming', s.dodgeTiming, 1 + s.dodgeTiming * 0.5); // faster reset pace
       break;
   }
-  return Math.max(0.25, Math.min(4, mod));
+  return { mod: Math.max(0.25, Math.min(4, mod)), contributions };
 }
 
 export interface TacticDecision {
   state: TacticState;
   /** True when the tactic changed this tick. */
   changed: boolean;
+  /**
+   * The top-2 terms behind the newly-picked tactic (#55, BOSS_AI.md §8).
+   * Only populated on the tick a change happens — a hold costs nothing.
+   *
+   * Empty for a PUNISH entry, and that is the accurate answer rather than a
+   * gap: PUNISH is trigger-only (§3), entered from an opening plus the F5
+   * gate, never scored. There is no signal to name, and inventing one is the
+   * exact failure #13's recap has to avoid.
+   */
+  because: SignalContribution[];
 }
 
 /**
@@ -146,32 +188,37 @@ export function tickTactic(
     state.ticksInTactic = 0;
     state.holdTicks = TACTIC_MIN_HOLD_TICKS;
     state.punishCooldown = PUNISH_COOLDOWN_TICKS;
-    return { state, changed: true };
+    return { state, changed: true, because: [] };
   }
 
   if (state.ticksInTactic < state.holdTicks) {
-    return { state, changed: false };
+    return { state, changed: false, because: [] };
   }
 
   // Hold expired: softmax over the scoreable tactics (PUNISH excluded by
   // type). Deterministic given (rng, signals, ctx).
   const signals = getSignals();
   const candidates = Object.keys(BASE_SCORE) as ScoredTactic[];
-  const scores = candidates.map((t) => BASE_SCORE[t] * tacticBehaviorMod(t, signals, ctx));
+  // Detailed once per candidate; `.mod` is what scores. Reusing the same
+  // objects for the winner's `because` means the logged reason is literally
+  // the arithmetic that won, not a second pass over the same inputs.
+  const details = candidates.map((t) => tacticBehaviorModDetailed(t, signals, ctx));
+  const scores = candidates.map((t, i) => BASE_SCORE[t] * details[i].mod);
   const maxScore = Math.max(...scores);
   const exps = scores.map((sc) => Math.exp((sc - maxScore) / TACTIC_SOFTMAX_TEMPERATURE));
   const total = exps.reduce((a, b) => a + b, 0);
 
   const [rawRoll, rng] = nextRandom(state.rng);
   let roll = rawRoll * total;
-  let picked = candidates[candidates.length - 1];
+  let pickedIndex = candidates.length - 1;
   for (let i = 0; i < candidates.length; i++) {
     roll -= exps[i];
     if (roll <= 0) {
-      picked = candidates[i];
+      pickedIndex = i;
       break;
     }
   }
+  const picked = candidates[pickedIndex];
 
   // Hold duration for the new tactic: deterministic draw in [min, max].
   const [holdRoll, rng2] = nextRandom(rng);
@@ -184,5 +231,11 @@ export function tickTactic(
   state.ticksInTactic = 0;
   state.holdTicks = holdTicks;
   state.rng = rng2;
-  return { state, changed };
+  // Only ranked when the intent actually changed — a re-score that lands on
+  // the same tactic is not a decision worth a log line (#55's bounding rule).
+  return {
+    state,
+    changed,
+    because: changed ? topContributions(details[pickedIndex].contributions) : [],
+  };
 }

@@ -106,6 +106,18 @@ the hard way while building the first one:
      the very row it's about to write, lock that row before computing it —
      a bare conditional `UPDATE … WHERE` is only atomic against a cost that
      doesn't itself depend on the row's current value.
+   - **A telemetry parameter is untrusted input into a column nothing else
+     validates, and it should degrade, not fail, the call.** `#55`'s
+     `resolve_attempt(p_log)` stores the boss's decision log for `#13`'s
+     recap. Two rules, both because that column will later be read *by a
+     model*: only a known, expected shape survives into storage — every other
+     key a client sends is dropped rather than persisted, since anything
+     stored here is a future prompt-injection surface, not just junk data —
+     and an oversized payload is truncated to a marker rather than rejected,
+     because telemetry failing must never cost the player the reward the same
+     call pays. Keep the two outcomes (state-mutating params vs.
+     observability params) held to different failure policies deliberately —
+     a bad amount should raise, a bad log should degrade.
 
 ## Alternatives considered
 - **NextAuth + self-hosted Postgres** — rejected: more moving parts and ops for a

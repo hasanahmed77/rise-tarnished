@@ -128,6 +128,10 @@ async function resolveAttempt(outcome: FightOutcome): Promise<ResolvedAttempt> {
       p_boss_id: outcome.bossId,
       p_result: outcome.result,
       p_duration_ticks: outcome.durationTicks,
+      // Telemetry for #13's recap (BOSS_AI.md §8). Like the rune estimate,
+      // it is never trusted to compute anything — the RPC stores it verbatim
+      // and derives no reward from it.
+      p_log: { decisions: outcome.decisionLog },
     })
     .single();
 

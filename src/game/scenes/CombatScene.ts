@@ -34,6 +34,12 @@ import {
   type BossStepContext,
 } from '../boss/bossCombat';
 import { margitWeightRules } from '../boss/weighting';
+import {
+  MAX_LOGGED_DECISIONS,
+  type DecisionEvent,
+  type DecisionLayer,
+  type SignalContribution,
+} from '../boss/decisionLog';
 import { margitMoves, margitTopLevelMoveIds } from '../boss/margitMoves';
 import { BOSS_BASE_MAX_HP, MARGIT_BOSS_ID, MARGIT_RUNE_REWARD } from '../boss/bossTuning';
 import {
@@ -129,6 +135,15 @@ export class CombatScene extends Phaser.Scene {
   private bridge?: GameBridge;
   private attemptId!: string;
   private tickCount = 0;
+  /**
+   * The boss's L2/L3 decisions this attempt (#55, BOSS_AI.md §8). Lives in the
+   * scene, not in `boss`, for two reasons: the sim stays a pure function whose
+   * state is cloned every tick (an append-only array in there would be shared
+   * mutable state across that boundary), and the tick counter plus the player's
+   * hp/stamina are shell facts — the boss AI reads player *behaviour*, never
+   * player stats, and this must not become a back door to that.
+   */
+  private decisionLog: DecisionEvent[] = [];
   /** True once a terminal HP state has been detected and reported — freezes
    * the sim loop so nothing acts (or reports a second outcome) after death. */
   private finished = false;
@@ -311,6 +326,10 @@ export class CombatScene extends Phaser.Scene {
    * triggered by the shell's 'fight:start' bridge event — the scene is
    * otherwise idle (static HUD chrome only) until this fires. */
   private startFight({ build }: { bossId: string; build: PlayerBuild }): void {
+    // Reset alongside the sim it describes. `attemptId` is minted once per
+    // scene instance, so in practice this runs once — but the log must not be
+    // able to carry decisions from a previous sim into a new attempt's row.
+    this.decisionLog = [];
     this.sim = createPlayerState(this.scale.width * PLAYER_START_X_RATIO, build);
     this.ctx = {
       build,
@@ -518,7 +537,11 @@ export class CombatScene extends Phaser.Scene {
         if (e.type === 'move:active') this.resolveBossAttackOnPlayer(e.move);
         // The boss acting also marks the fight as begun — a pre-input resize
         // must not teleport a boss that's already mid-approach/mid-move.
-        if (e.type === 'move:start') this.fightStarted = true;
+        if (e.type === 'move:start') {
+          this.fightStarted = true;
+          this.recordDecision('action', e.moveId, e.because);
+        }
+        if (e.type === 'tactic:change') this.recordDecision('tactic', e.tactic, e.because);
       }
 
       // Sorcery projectiles hit the boss the same way melee does — the scene
@@ -535,6 +558,37 @@ export class CombatScene extends Phaser.Scene {
     }
 
     this.render();
+  }
+
+  /**
+   * Append one L2/L3 decision to the attempt log (#55, BOSS_AI.md §8).
+   *
+   * Called only from `move:start` and `tactic:change`, which is what keeps the
+   * log bounded: L2 re-scores every tick but only *changes* every 2-5s, and L3
+   * picks a move roughly once a second, so a full fight yields tens of entries
+   * rather than one per tick. MAX_LOGGED_DECISIONS is the backstop for a
+   * pathological attrition fight — dropping the tail rather than the head keeps
+   * the opening of the fight, but the killing blow is what #13's recap needs
+   * most, so the *oldest* entry is evicted instead.
+   */
+  private recordDecision(
+    layer: DecisionLayer,
+    chose: string,
+    becauseSignals: SignalContribution[],
+  ): void {
+    if (this.decisionLog.length >= MAX_LOGGED_DECISIONS) this.decisionLog.shift();
+    this.decisionLog.push({
+      tick: this.tickCount,
+      layer,
+      chose,
+      becauseSignals,
+      playerStateSnapshot: {
+        hp: Math.round(this.sim.hp),
+        stamina: Math.round(this.sim.stamina),
+        distance: Math.round(Math.abs(this.boss.x - this.sim.x)),
+        action: this.sim.action?.id ?? null,
+      },
+    });
   }
 
   private reportOutcome(result: FightResult): void {
@@ -560,6 +614,7 @@ export class CombatScene extends Phaser.Scene {
       result,
       durationTicks: this.tickCount,
       estimatedRuneDelta: computeRuneReward(result, MARGIT_RUNE_REWARD),
+      decisionLog: this.decisionLog,
     });
   }
 
