@@ -13,6 +13,7 @@ describe('GameBridge', () => {
       result: 'death' as const,
       durationTicks: 3600,
       estimatedRuneDelta: 0,
+      decisionLog: [],
     };
     bridge.toShell.emit('fight:outcome', outcome);
 

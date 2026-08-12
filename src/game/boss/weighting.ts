@@ -6,6 +6,7 @@
 
 import type { BehaviorSignals } from './behaviorTracker';
 import type { MoveDef, MoveTag } from './types';
+import type { SignalContribution, WeightedModResult } from './decisionLog';
 import { clamp } from '../util';
 
 /** F4 clamp bounds. */
@@ -30,12 +31,32 @@ export const margitWeightRules: WeightRule[] = [
   { tag: 'sweep', signal: 'dodgeTiming', gain: 1 }, // clean dodgers see more mixups
 ];
 
-export function behaviorMod(move: MoveDef, signals: BehaviorSignals, rules: WeightRule[]): number {
+/**
+ * behaviorMod, plus the per-rule breakdown of how it got there (#55).
+ *
+ * This is the single implementation; `behaviorMod` below is a thin accessor for
+ * the score. Deliberately not two functions computing the same number: the
+ * recap's whole claim is that the reason it reports *is* the reason the boss
+ * picked the move, and a parallel re-derivation is exactly how that claim
+ * quietly stops being true after a tuning change. One expression, two readers.
+ */
+export function behaviorModDetailed(
+  move: MoveDef,
+  signals: BehaviorSignals,
+  rules: WeightRule[],
+): WeightedModResult {
   let mod = 1;
+  const contributions: SignalContribution[] = [];
   for (const rule of rules) {
     if (move.tags.includes(rule.tag)) {
-      mod *= 1 + signals[rule.signal] * rule.gain;
+      const effect = 1 + signals[rule.signal] * rule.gain;
+      mod *= effect;
+      contributions.push({ signal: rule.signal, value: signals[rule.signal], effect });
     }
   }
-  return clamp(mod, BEHAVIOR_MOD_MIN, BEHAVIOR_MOD_MAX);
+  return { mod: clamp(mod, BEHAVIOR_MOD_MIN, BEHAVIOR_MOD_MAX), contributions };
+}
+
+export function behaviorMod(move: MoveDef, signals: BehaviorSignals, rules: WeightRule[]): number {
+  return behaviorModDetailed(move, signals, rules).mod;
 }

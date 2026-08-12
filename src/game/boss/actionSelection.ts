@@ -13,7 +13,8 @@
 import { INTER_SEQUENCE_GAP_TICKS } from './moveSchema';
 import { weightedPick, type RngState } from './rng';
 import type { MoveTable, PlayerActionTag, Tactic } from './types';
-import { behaviorMod, type WeightRule } from './weighting';
+import { behaviorModDetailed, type WeightRule } from './weighting';
+import { topContributions, type SignalContribution } from './decisionLog';
 import type { BehaviorSignals } from './behaviorTracker';
 
 export interface SelectionState {
@@ -62,7 +63,17 @@ function recordPick(state: SelectionState, id: string, cooldownTicks: number): S
 }
 
 export type SelectionResult =
-  | { kind: 'move'; moveId: string; state: SelectionState }
+  | {
+      kind: 'move';
+      moveId: string;
+      state: SelectionState;
+      /**
+       * Top-2 terms behind this pick (#55, BOSS_AI.md §8). Empty is the honest
+       * answer for a combo continuation: link weights are *authored* per
+       * sequence, so no signal chose it — the previous move did.
+       */
+      because: SignalContribution[];
+    }
   | { kind: 'sequence-end'; state: SelectionState }
   /** Mid-gap (F2) or nothing eligible: no decision this tick, just approach. */
   | { kind: 'no-action'; state: SelectionState };
@@ -117,10 +128,15 @@ export function selectTopLevel(
     if (tacticMatched.length > 0) pool = tacticMatched;
   }
 
-  const options = pool.map((id) => ({
-    item: id,
-    weight: weighting ? behaviorMod(table[id], weighting.signals, weighting.rules) : 1,
-  }));
+  // Score and reason come from the same call per candidate, so the logged
+  // "because" is the arithmetic that actually weighted the winner (#55).
+  const reasons = new Map<string, SignalContribution[]>();
+  const options = pool.map((id) => {
+    if (!weighting) return { item: id, weight: 1 };
+    const detail = behaviorModDetailed(table[id], weighting.signals, weighting.rules);
+    reasons.set(id, detail.contributions);
+    return { item: id, weight: detail.mod };
+  });
   const totalWeight = options.reduce((sum, o) => sum + o.weight, 0);
 
   const [picked, nextRng] = weightedPick(options, totalWeight, state.rng);
@@ -130,6 +146,7 @@ export function selectTopLevel(
     kind: 'move',
     moveId: chosen,
     state: { ...recordPick(withRng, chosen, table[chosen].cooldownTicks), chainDepth: 1 },
+    because: topContributions(reasons.get(chosen) ?? []),
   };
 }
 
@@ -192,5 +209,7 @@ export function selectComboBranch(
       ...recordPick(withRng, picked, table[picked].cooldownTicks),
       chainDepth: state.chainDepth + 1,
     },
+    // Authored link weights, not signal weights — nothing to attribute.
+    because: [],
   };
 }
