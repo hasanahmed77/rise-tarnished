@@ -256,16 +256,23 @@ authoring target and the template that proves the schema.
 
 ## 8. Observability & the post-death recap
 
-**Status (`#55`, shipped):** both halves are real now. The attempt row (boss
-id, result, duration, rune reward) has been persisted via `resolve_attempt`
-since `#11`. The per-decision event log below is collected too: L2 (`tactics.ts`)
-and L3 (`actionSelection.ts`) each report the top-2 signals behind a decision
-through the same expression that computes its score (`decisionLog.ts`,
-`weighting.ts`), CombatScene accumulates them per attempt (stamping the tick
-and the player snapshot the boss sim itself cannot see), and
-`resolve_attempt`'s new `p_log` parameter persists them into
-`attempt_logs.log`, sanitised server-side against untrusted input. `#13`'s
-prerequisite is closed.
+**Status (`#55` + `#13`, shipped):** the observability and recap halves are
+both real now. The attempt row (boss id, result, duration, rune reward) has
+been persisted via `resolve_attempt` since `#11`. The per-decision event log
+is collected: L2 (`tactics.ts`) and L3 (`actionSelection.ts`) each report the
+top-2 signals behind a decision through the same expression that computes its
+score (`decisionLog.ts`, `weighting.ts`), CombatScene accumulates them per
+attempt (stamping the tick and the player snapshot the boss sim itself cannot
+see), and `resolve_attempt`'s `p_log` parameter persists them into
+`attempt_logs.log`, sanitised server-side against untrusted input.
+
+`#13`'s recap route (`src/app/api/recap`, ADR-0004) reads that log
+server-side, under the caller's own RLS-scoped session, and turns it into one
+short sentence naming the killing move and the real signal that selected it.
+It is grounded by construction: the response is checked against the
+attempt's own log before it ever reaches the player, and a response that
+names a move or tactic the log never recorded is discarded rather than
+shown — see `isGrounded()` in `src/game/attempt/recap.ts`.
 
 Every L2/L3 decision that actually changes intent emits a structured event to
 the attempt log (a re-score that holds the same tactic emits nothing — this is

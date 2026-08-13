@@ -20,6 +20,16 @@ type ResolutionState =
   | { status: 'resolved'; outcome: FightOutcome; resolved: ResolvedAttempt }
   | { status: 'error'; outcome: FightOutcome; message: string };
 
+/** The post-death recap (#13, ADR-0004) — always optional, never blocking.
+ * 'idle' covers both "not attempted yet" and every non-death outcome, so the
+ * overlay has one state to check rather than a separate "is this a death"
+ * branch at every render site. */
+type RecapState =
+  | { status: 'idle' }
+  | { status: 'pending' }
+  | { status: 'ready'; text: string }
+  | { status: 'unavailable' };
+
 // The single place where the Phaser runtime is mounted into the React tree
 // (ADR-0001). React owns this component's lifecycle; Phaser owns everything
 // inside the container div. Communication is bridge-only.
@@ -33,6 +43,7 @@ export function GameCanvas({ build }: { build: PlayerBuild }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [engineReady, setEngineReady] = useState(false);
   const [resolution, setResolution] = useState<ResolutionState | null>(null);
+  const [recap, setRecap] = useState<RecapState>({ status: 'idle' });
 
   useEffect(() => {
     const container = containerRef.current;
@@ -53,10 +64,24 @@ export function GameCanvas({ build }: { build: PlayerBuild }) {
     });
     const offOutcome = bridge.toShell.on('fight:outcome', (outcome) => {
       setResolution({ status: 'resolving', outcome });
+      setRecap({ status: 'idle' });
       void resolveAttempt(outcome).then(
         (resolved) => {
           if (disposed) return;
           setResolution({ status: 'resolved', outcome, resolved });
+
+          // Only after resolve_attempt has actually persisted the attempt —
+          // the recap route reads attempt_logs server-side, so the row must
+          // exist first — and only on death (PRD G4 is a post-death
+          // breakdown; a win has nothing to explain). Fire-and-forget: the
+          // overlay below is already fully usable without this.
+          if (outcome.result === 'death') {
+            setRecap({ status: 'pending' });
+            void fetchRecap(outcome.attemptId).then((text) => {
+              if (disposed) return;
+              setRecap(text ? { status: 'ready', text } : { status: 'unavailable' });
+            });
+          }
         },
         (err: unknown) => {
           if (disposed) return;
@@ -96,7 +121,7 @@ export function GameCanvas({ build }: { build: PlayerBuild }) {
       <p className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 font-mono text-xs text-neutral-500">
         {engineReady ? 'engine: ready (bridge ok)' : 'engine: booting…'}
       </p>
-      {resolution && <ResolutionOverlay state={resolution} />}
+      {resolution && <ResolutionOverlay state={resolution} recap={recap} />}
     </div>
   );
 }
@@ -155,6 +180,28 @@ async function resolveAttempt(outcome: FightOutcome): Promise<ResolvedAttempt> {
 // string (the safer convention, to avoid JS Number precision loss above
 // 2^53), and that can differ between the local CLI stack and a live hosted
 // project. Accept either; resolveAttempt() coerces it to a number for display.
+/** Calls POST /api/recap (#13, ADR-0004). Returns null on ANY failure — bad
+ * status, network error, malformed body — never throws. The recap is
+ * enrichment; silence is the correct response to every failure mode here,
+ * not a retry or a surfaced error (the route itself already collapses
+ * "provider down" / "response wasn't grounded" / "nothing to explain" into
+ * the same `{ recap: null }` shape, so this just has to trust that). */
+async function fetchRecap(attemptId: string): Promise<string | null> {
+  try {
+    const res = await fetch('/api/recap', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ attemptId }),
+    });
+    if (!res.ok) return null;
+    const data: unknown = await res.json();
+    const text = (data as { recap?: unknown } | null)?.recap;
+    return typeof text === 'string' ? text : null;
+  } catch {
+    return null;
+  }
+}
+
 function isResolveAttemptRow(
   value: unknown,
 ): value is { rune_delta: number; total_runes: number | string; region_unlocked: boolean } {
@@ -168,11 +215,11 @@ function isResolveAttemptRow(
   );
 }
 
-function ResolutionOverlay({ state }: { state: ResolutionState }) {
+function ResolutionOverlay({ state, recap }: { state: ResolutionState; recap: RecapState }) {
   const victory = state.outcome.result === 'victory';
   return (
     <div className="absolute inset-0 flex items-center justify-center bg-black/70 font-mono text-neutral-100">
-      <div className="flex flex-col items-center gap-3 text-center">
+      <div className="flex max-w-md flex-col items-center gap-3 text-center">
         <h2 className={`text-3xl ${victory ? 'text-amber-300' : 'text-red-400'}`}>
           {victory ? 'MARGIT, THE FELL OMEN — FALLEN' : 'YOU DIED'}
         </h2>
@@ -193,6 +240,14 @@ function ResolutionOverlay({ state }: { state: ResolutionState }) {
             </p>
             {state.resolved.regionUnlocked && (
               <p className="text-sm text-amber-300">Region cleared — the next path is open.</p>
+            )}
+            {/* Only ever rendered for a death (recap stays 'idle' on a win —
+             * see the fetch trigger in GameCanvas). Nothing shows for
+             * 'pending'/'unavailable': a placeholder or an error line here
+             * would be the "spinner that outlives the player's patience"
+             * ADR-0004's non-blocking requirement rules out. */}
+            {recap.status === 'ready' && (
+              <p className="text-sm italic text-neutral-300">&ldquo;{recap.text}&rdquo;</p>
             )}
           </>
         )}
