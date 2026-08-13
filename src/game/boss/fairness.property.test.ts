@@ -14,13 +14,14 @@
 
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-import { step, createBossState, type BossStepContext } from './bossCombat';
+import { step, createBossState } from './bossCombat';
 import { margitMoves, margitTopLevelMoveIds } from './margitMoves';
 import { margitWeightRules, behaviorMod, BEHAVIOR_MOD_MAX, BEHAVIOR_MOD_MIN } from './weighting';
 import { computeSignals, createTracker, trackTick, type BehaviorSignals } from './behaviorTracker';
 import { MAX_CHAIN_PHASE1, MIN_INTER_SEQUENCE_GAP_TICKS, MIN_TELL_FRAMES } from './moveSchema';
 import { PUNISH_COOLDOWN_TICKS } from './tactics';
 import { weightedPick, createRng } from './rng';
+import { botStepContext, type BotName } from './botHarness';
 import type { MoveDef, MoveTag } from './types';
 
 const ALL_TAGS: MoveTag[] = [
@@ -137,9 +138,11 @@ describe('pure fairness properties (fast-check)', () => {
 
 // ---------------------------------------------------------------------------
 // Adversarial simulations
+//
+// Bot definitions live in botHarness.ts (#14) — shared with
+// adaptation.property.test.ts so "what does a roll-spammer do" has one
+// definition, not two that can quietly drift apart.
 // ---------------------------------------------------------------------------
-
-type BotName = 'roll-spammer' | 'turtle' | 'camper' | 'masher' | 'idle';
 
 interface SimResult {
   ticks: number;
@@ -151,35 +154,19 @@ function simulate(bot: BotName, seed: number, ticks: number): SimResult {
   let s = createBossState(300, seed);
   const violations: string[] = [];
 
-  let dodgeNextTick = false;
+  let justSawMoveStart = false;
   let tickIndex = 0;
   let lastSequenceEndTick: number | null = null;
   let lastPunishTick: number | null = null;
   const recentStarts: string[] = [];
 
   for (let i = 0; i < ticks; i++) {
-    // Bot behavior → observed telemetry.
-    const playerX = bot === 'camper' ? s.x + 200 : 250;
-    const ctx: BossStepContext = {
-      table: margitMoves,
-      topLevelIds: margitTopLevelMoveIds,
-      playerX,
-      minX: 40,
-      maxX: 900,
-      lastPlayerAction: bot === 'roll-spammer' ? 'dodge' : bot === 'turtle' ? 'block' : null,
-      weightRules: margitWeightRules,
-      observed: {
-        playerBlocking: bot === 'turtle',
-        dodgeStarted: bot === 'roll-spammer' && dodgeNextTick,
-        attackStarted: bot === 'masher' && i % 30 === 0,
-        punishableOpening: bot === 'masher' && i % 90 < 40,
-      },
-    };
+    const ctx = botStepContext(bot, i, s, justSawMoveStart);
 
     const wasIdleNoAction = s.action === null && s.selection.chainDepth === 0;
     const r = step(s, ctx);
     s = r.state;
-    dodgeNextTick = r.events.some((e) => e.type === 'move:start');
+    justSawMoveStart = r.events.some((e) => e.type === 'move:start');
 
     // F3 — chain depth is hard-capped, probed every tick.
     if (s.selection.chainDepth > MAX_CHAIN_PHASE1) {

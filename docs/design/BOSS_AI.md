@@ -309,6 +309,36 @@ The **player-bot simulation harness** is the crown jewel: it proves *adaptation
 works* in CI, headlessly, before a human ever playtests — and it's only
 possible because the whole brain is Phaser-free.
 
+**Status (`#14`, shipped):** `src/game/boss/botHarness.ts` defines the
+scripted bots — a single, shared definition each bot's telemetry so
+`fairness.property.test.ts` (#10) and `adaptation.property.test.ts` (#14)
+can't quietly drift apart on "what a roll-spammer does." The bots drive
+`bossCombat.step` directly with synthetic `observed` telemetry; no real
+`PlayerCombatState` runs, which is sound precisely because the whole
+adaptation mechanism (tracker → L2 → L3) only ever reads that telemetry, not
+the player's own combat state.
+
+`adaptation.property.test.ts` proves the acceptance criterion itself: for
+each of roll-spammer, turtle, and camper, the counter-tactic's cumulative
+selection rate over a 9000-tick run is compared against an `idle` baseline
+(not an early/late split — L2 re-scores are too sparse for a short window to
+give a stable rate) and asserted to rise by a real, calibrated margin, in
+every one of 5 seeds:
+
+| Bot exploits | Counter-tactic | Counter-move also asserted |
+|---|---|---|
+| dodging on reflex (`dodgeReflex`) | `BAIT` | `margit.delayed_overhead` |
+| blocking + standing still (`turtleIndex`) | `PRESSURE` | `margit.grab` |
+| holding max range (`rangeCamping`) | `REPOSITION` | — see note below |
+
+The camper case stops at the tactic level rather than also asserting
+`margit.flying_thrust`'s selection rate — calibration found the boss is
+often still finishing an earlier combo sequence when `REPOSITION`'s hold
+window elapses, so a fresh top-level pick under `REPOSITION` is rarer than
+the tactic-level win rate alone would suggest. That's a real property of the
+current move table's timing, not a bug, and the test says so rather than
+asserting something the table can't reliably deliver.
+
 ## 10. Open tuning questions (not blockers)
 
 - Softmax temperature per boss (how "decisive" each boss feels).
