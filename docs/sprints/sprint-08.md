@@ -36,7 +36,7 @@ the larger half of this sprint.
       per BOSS_AI.md §8, bounded to decisions rather than ticks, persisted
       through a new `p_log jsonb` parameter on `resolve_attempt`. Deterministic,
       fairness suite unchanged, frame budget untouched.*
-- [ ] **#13** Post-death LLM recap (server route) — size M, p1
+- [x] **#13** Post-death LLM recap (server route) — size M, p1
       *A server-side route handler that proxies the model with the key never
       reaching the client, reads the attempt log, and returns a short recap
       naming the killing move and the signal that selected it. Async and
