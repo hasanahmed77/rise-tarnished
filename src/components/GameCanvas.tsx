@@ -5,6 +5,7 @@ import type Phaser from 'phaser';
 import { GameBridge, type FightOutcome, type PlayerBuild } from '@/game/bridge';
 import { MARGIT_BOSS_ID } from '@/game/boss/bossTuning';
 import { createClient } from '@/lib/supabase/client';
+import type { GameSettings } from '@/lib/settings';
 
 /** Server-persisted result of resolve_attempt (#11) — distinct from the
  * bridge's FightOutcome, whose estimatedRuneDelta is only an optimistic
@@ -39,11 +40,20 @@ type RecapState =
 // mounting this component, so it's ready the instant the engine asks for it
 // via 'fight:start'. One GameCanvas mount is one fight; a fresh build for
 // the next attempt means remounting (see PlayPage's "fight again" reload).
-export function GameCanvas({ build }: { build: PlayerBuild }) {
+export function GameCanvas({ build, settings }: { build: PlayerBuild; settings: GameSettings }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [engineReady, setEngineReady] = useState(false);
   const [resolution, setResolution] = useState<ResolutionState | null>(null);
   const [recap, setRecap] = useState<RecapState>({ status: 'idle' });
+
+  // #56 — the bridge and the latest `settings` both need to outlive any
+  // single render so the two effects below can reach them: the bridge is
+  // created once (empty-deps effect) and read from the settings-push effect;
+  // `settings` is read inside the 'game:ready' handler, which is created
+  // once and would otherwise close over whatever `settings` was at that
+  // first render.
+  const bridgeRef = useRef<GameBridge | null>(null);
+  const settingsRef = useRef(settings);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -56,11 +66,17 @@ export function GameCanvas({ build }: { build: PlayerBuild }) {
     let game: Phaser.Game | null = null;
 
     const bridge = new GameBridge();
+    bridgeRef.current = bridge;
     const offReady = bridge.toShell.on('game:ready', () => {
       setEngineReady(true);
       // The engine is idle until this carries the real build (CombatScene's
       // startFight()) — never the hardcoded sandbox build it used before #12.
       bridge.toGame.emit('fight:start', { bossId: MARGIT_BOSS_ID, build });
+      // CombatScene also self-initializes from localStorage at creation
+      // (see its comment) — this covers the case where SettingsPanel already
+      // pushed an update before the game finished booting, which the
+      // settings-push effect below would have sent to no listener.
+      bridge.toGame.emit('settings:update', settingsRef.current);
     });
     const offOutcome = bridge.toShell.on('fight:outcome', (outcome) => {
       setResolution({ status: 'resolving', outcome });
@@ -107,6 +123,7 @@ export function GameCanvas({ build }: { build: PlayerBuild }) {
       game?.destroy(true);
       game = null;
       bridge.dispose();
+      bridgeRef.current = null;
       setEngineReady(false);
     };
     // `build` isn't expected to change for this component's lifetime (see
@@ -114,6 +131,15 @@ export function GameCanvas({ build }: { build: PlayerBuild }) {
     // remounting the whole game to start a fresh fight on it is correct.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // #56 — live settings updates to an already-running fight. Deliberately
+  // separate from the mount effect above (which never re-runs): toggling a
+  // setting must not tear down and recreate the whole Phaser game, it just
+  // needs one message sent to the scene that's already running.
+  useEffect(() => {
+    settingsRef.current = settings;
+    bridgeRef.current?.toGame.emit('settings:update', settings);
+  }, [settings]);
 
   return (
     <div className="relative h-full w-full">

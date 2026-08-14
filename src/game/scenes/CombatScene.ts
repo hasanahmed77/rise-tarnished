@@ -66,6 +66,12 @@ import {
 import { computeRuneReward, type FightResult } from '../attempt/reward';
 import { determineFightOutcome } from '../attempt/outcome';
 import type { MoveDef } from '../boss/types';
+import {
+  DEFAULT_SETTINGS,
+  loadSettings,
+  saveSettings,
+  type GameSettings,
+} from '../../lib/settings';
 
 // Renders and drives the fight (issues #6/#7/#8). All rules live in the
 // Phaser-free combat/boss modules (ADR-0001); this scene only samples input,
@@ -150,6 +156,14 @@ export class CombatScene extends Phaser.Scene {
 
   private keys!: Record<string, Phaser.Input.Keyboard.Key>;
   private muteKey!: Phaser.Input.Keyboard.Key;
+  /** #56 — screenshake toggle + mute preference. Initialized from
+   * localStorage directly in create() (Phaser-side, no bridge round-trip
+   * needed for the common case: settings already existed before this scene
+   * was created), then kept live via the 'settings:update' bridge event for
+   * a toggle made mid-fight through SettingsPanel. The M-key shortcut writes
+   * back into this same object so neither affordance goes stale against the
+   * other. */
+  private settings: GameSettings = DEFAULT_SETTINGS;
   /** The looping ambience bed, once the browser has let audio start. */
   private ambience?: Phaser.Sound.BaseSound;
 
@@ -303,6 +317,13 @@ export class CombatScene extends Phaser.Scene {
 
     this.muteKey = this.input.keyboard!.addKey('M');
 
+    // #56 — read once synchronously (covers the common case: SettingsPanel
+    // already exists and has whatever was last saved) rather than waiting on
+    // the bridge, which only fires 'settings:update' after 'game:ready' —
+    // this would otherwise leave one tick of shake/audio at defaults.
+    this.settings = loadSettings();
+    this.sound.mute = this.settings.muted;
+
     this.scale.on(Phaser.Scale.Events.RESIZE, this.onResize, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off(Phaser.Scale.Events.RESIZE, this.onResize, this);
@@ -317,7 +338,15 @@ export class CombatScene extends Phaser.Scene {
     const offFightStart = this.bridge?.toGame.on('fight:start', (payload) =>
       this.startFight(payload),
     );
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => offFightStart?.());
+    // #56 — live updates from SettingsPanel while this scene is running.
+    const offSettings = this.bridge?.toGame.on('settings:update', (settings) => {
+      this.settings = settings;
+      this.sound.mute = settings.muted;
+    });
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      offFightStart?.();
+      offSettings?.();
+    });
     this.bridge?.toShell.emit('game:ready', undefined);
   }
 
@@ -660,9 +689,12 @@ export class CombatScene extends Phaser.Scene {
     this.sfx(result.wasCritical ? 'hit-critical' : 'hit', { detuneCents: this.spread(90) });
   }
 
-  /** Camera shake, budgeted per COMBAT_SYSTEM.md §8 (screen shake is
-   * explicitly a budgeted effect with an accessibility toggle planned). */
+  /** Camera shake, budgeted per COMBAT_SYSTEM.md §8 and gated by the
+   * accessibility toggle that section called for (#56, SettingsPanel) — a
+   * motion-sensitivity control, so it has to actually suppress every shake,
+   * not just turn the intensity down. */
   private shake(intensity: number, duration = 110): void {
+    if (!this.settings.screenshakeEnabled) return;
     this.cameras.main.shake(duration, intensity, true);
   }
 
@@ -709,12 +741,16 @@ export class CombatScene extends Phaser.Scene {
     else begin();
   }
 
-  /** Mute toggle (M). COMBAT_SYSTEM.md §8 already calls for an accessibility
-   * toggle on screen shake; audio deserves the same courtesy, and a key is
-   * the cheapest version of it until a settings surface exists. */
+  /** Mute toggle (M) — now a shortcut for the same preference SettingsPanel
+   * shows (#56), not its only affordance. Persists through the same
+   * lib/settings module the panel reads/writes, so pressing M and then
+   * reopening the panel (or starting a fresh fight) never shows a stale
+   * checkbox. */
   private updateMuteToggle(): void {
     if (Phaser.Input.Keyboard.JustDown(this.muteKey)) {
-      this.sound.mute = !this.sound.mute;
+      this.settings = { ...this.settings, muted: !this.sound.mute };
+      this.sound.mute = this.settings.muted;
+      saveSettings(this.settings);
     }
   }
 
