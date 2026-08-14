@@ -184,7 +184,20 @@ Gamepad support is post-MVP (PRD open question resolved: **keyboard-first**).
   occasional hazard zones (Radahn's arena scale, Haligtree rot pools) — arena
   features are per-boss data, not engine features.
 - Camera: smoothed follow with lookahead toward the boss; screen shake budgeted
-  (accessibility toggle).
+  and gated by an accessibility toggle.
+
+  **Status (`#56`, shipped):** the toggle lives in `SettingsPanel`
+  (`src/components/SettingsPanel.tsx`), reachable from `PlayShell` the whole
+  time it's mounted rather than only from the character sheet (which can skip
+  itself straight to the fight, so it isn't a reliable host for the game's
+  only accessibility control). Off suppresses every `CombatScene.shake()`
+  call outright — a motion-sensitivity control has to actually remove the
+  motion, not just turn it down. The panel also carries the audio mute
+  preference the `M` key already toggled (#51); both read/write the same
+  `src/lib/settings.ts`-backed localStorage value, so neither goes stale
+  against the other, and the preference survives a reload (a client display
+  preference, not game state — no `player_stats` column or RPC, per
+  ADR-0003's authoritative-state scope).
 
 ## 9. What this spec deliberately excludes (v1)
 

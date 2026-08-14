@@ -6,6 +6,7 @@
 // These are the v1 stubs; the contract grows via PR as features land.
 
 import type { DecisionEvent } from './boss/decisionLog';
+import type { GameSettings } from '@/lib/settings';
 
 export interface PlayerBuild {
   vitality: number;
@@ -38,6 +39,12 @@ export interface FightOutcome {
 /** React → Phaser */
 export interface ShellToGameEvents {
   'fight:start': { bossId: string; build: PlayerBuild };
+  /** #56 — pushed once the game is created and again on every change from
+   * SettingsPanel, so a toggle mid-fight (e.g. muting) applies immediately
+   * rather than waiting for the next fight. CombatScene also reads
+   * `loadSettings()` directly at creation (see its own comment) — this event
+   * is only for *live* updates to an already-running scene. */
+  'settings:update': GameSettings;
 }
 
 /** Phaser → React */
