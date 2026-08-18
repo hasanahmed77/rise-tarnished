@@ -77,6 +77,15 @@ export const BLOCK_STAMINA_PER_HIT = 20;
 export const LIGHT_MAX_CHAIN = 3;
 export const LIGHT_CHAIN_RECOVERY_STEP = 2;
 
+/** Input buffer window (#20): an edge-triggered press (light/heavy/dodge/
+ * cast) is remembered for this many ticks and applied the instant the player
+ * is next able to act, rather than being silently dropped when it lands
+ * mid-action. ~83ms at 60Hz — long enough to catch a press thrown right at a
+ * recovery's tail (the reported bug) without feeling like a delayed input on
+ * a clean press against an idle player, since idle presses fire immediately
+ * and never touch the buffer's countdown. */
+export const INPUT_BUFFER_TICKS = 5;
+
 export type AttackId = 'light' | 'heavy';
 export type ActionId = AttackId | 'dodge' | 'block' | 'cast';
 

@@ -14,7 +14,9 @@ import {
 import {
   FRAME_DATA,
   GUARD_BREAK_STAGGER_TICKS,
+  INPUT_BUFFER_TICKS,
   LIGHT_CHAIN_RECOVERY_STEP,
+  LIGHT_MAX_CHAIN,
   MOVE_SPEED,
   POISE_STAGGER_TICKS,
   STAMINA_REGEN_DELAY_TICKS,
@@ -398,5 +400,132 @@ describe('poise & stagger', () => {
     const r = resolveIncomingHit(s, { hp: 30, poise: 5 }, BUILD);
     expect(r.result).toBe('hit');
     expect(r.hpLost).toBe(30);
+  });
+});
+
+describe('input buffering (#20)', () => {
+  /** Ticks a heavy takes to run from its press to idle again. */
+  const HEAVY_TOTAL =
+    FRAME_DATA.heavy.startup + FRAME_DATA.heavy.active + FRAME_DATA.heavy.recovery;
+
+  it('a dodge pressed on the last tick of recovery still fires, instead of being dropped', () => {
+    // The exact bug reported: the press lands on the tick recovery ends, so
+    // advancePhase clears the action and returns without ever consulting it —
+    // and the raw edge flag is gone by the next tick.
+    let s = step(createPlayerState(0, BUILD), press({ heavy: true }), CTX).state;
+    s = run(s, HEAVY_TOTAL - 1, NEUTRAL);
+    expect(s.action?.phase).toBe('recovery');
+    expect(s.action?.tickInPhase).toBe(FRAME_DATA.heavy.recovery - 1); // one tick left
+
+    s = step(s, press({ dodge: true }), CTX).state; // the drop-prone tick
+    expect(s.action).toBeNull(); // the heavy ends on this very tick
+
+    s = step(s, NEUTRAL, CTX).state; // first actionable tick
+    expect(s.action).toMatchObject({ id: 'dodge', phase: 'startup' });
+  });
+
+  it('a press a few ticks before the action frees up is still honoured', () => {
+    // Not just the final tick — anywhere inside the buffer window works.
+    let s = step(createPlayerState(0, BUILD), press({ heavy: true }), CTX).state;
+    s = run(s, HEAVY_TOTAL - 3, NEUTRAL);
+    s = step(s, press({ dodge: true }), CTX).state; // 3 ticks of recovery left
+    s = run(s, 3, NEUTRAL);
+    expect(s.action).toMatchObject({ id: 'dodge', phase: 'startup' });
+  });
+
+  it('a buffered press expires if the window closes before the player is free', () => {
+    // The buffer is a courtesy for near-misses, not a queue that replays an
+    // input from seconds ago — pressed at the START of a 24-tick recovery,
+    // it must be long gone by the time the player can act.
+    let s = step(createPlayerState(0, BUILD), press({ heavy: true }), CTX).state;
+    s = run(s, FRAME_DATA.heavy.startup + FRAME_DATA.heavy.active, NEUTRAL);
+    expect(s.action?.phase).toBe('recovery');
+    expect(FRAME_DATA.heavy.recovery).toBeGreaterThan(INPUT_BUFFER_TICKS + 2);
+
+    s = step(s, press({ dodge: true }), CTX).state;
+    s = run(s, FRAME_DATA.heavy.recovery, NEUTRAL); // through the end and past it
+    expect(s.action).toBeNull(); // idle, and NOT a stale dodge
+  });
+
+  it('respects priority (dodge over light) when both are buffered together', () => {
+    let s = step(createPlayerState(0, BUILD), press({ heavy: true }), CTX).state;
+    s = run(s, HEAVY_TOTAL - 2, NEUTRAL);
+    s = step(s, press({ light: true }), CTX).state;
+    s = step(s, press({ dodge: true }), CTX).state; // both buffered; heavy ends here
+    s = step(s, NEUTRAL, CTX).state; // first actionable tick
+    expect(s.action?.id).toBe('dodge');
+  });
+
+  it('an unaffordable buffered press waits for stamina rather than being discarded', () => {
+    // A press that arrives one point short isn't wrong, just early — the
+    // buffer keeps re-checking for the rest of its window instead of
+    // throwing the intent away on the first tick it couldn't pay.
+    let s = { ...createPlayerState(0, BUILD), stamina: FRAME_DATA.dodge.stamina - 1 };
+    s = step(s, press({ dodge: true }), CTX).state;
+    expect(s.action).toBeNull(); // one point short — correctly did not start
+
+    // Regen (25/s) covers a 1-point shortfall in ~3 ticks, inside the window.
+    s = run(s, 3, NEUTRAL);
+    expect(s.action).toMatchObject({ id: 'dodge', phase: 'startup' });
+  });
+
+  it('a light thrown during the ACTIVE window (before recovery even starts) still chains', () => {
+    // The same drop bug, one level up: the chain-check used to read raw
+    // input.light only on the exact tick already in recovery.
+    const fd = FRAME_DATA.light;
+    let s = step(createPlayerState(0, BUILD), press({ light: true }), CTX).state;
+    s = run(s, fd.startup, NEUTRAL);
+    expect(s.action?.phase).toBe('active');
+    s = step(s, press({ light: true }), CTX).state; // pressed mid-active
+    s = run(s, fd.active - 1, NEUTRAL); // finish active → enter recovery
+    expect(s.action?.phase).toBe('recovery');
+    expect(s.action?.chainIndex).toBe(1); // buffer hasn't fired yet
+    s = step(s, NEUTRAL, CTX).state;
+    expect(s.action).toMatchObject({ id: 'light', chainIndex: 2, phase: 'startup' });
+  });
+
+  it('does not let a buffered press start a 4th chain link past the max', () => {
+    // The existing "does not chain past the max" test only checks the tick
+    // of the 4th press; this confirms the buffer doesn't sneak that press in
+    // moments later either — a fresh chain (index 1) after the 3rd link's
+    // recovery ends is legitimate, but chainIndex must never exceed the cap.
+    const fd = FRAME_DATA.light;
+    let s = createPlayerState(0, BUILD);
+    s = step(s, press({ light: true }), CTX).state;
+    for (let chain = 2; chain <= LIGHT_MAX_CHAIN; chain++) {
+      s = run(s, fd.startup + fd.active, NEUTRAL);
+      s = step(s, press({ light: true }), CTX).state;
+    }
+    expect(s.action?.chainIndex).toBe(LIGHT_MAX_CHAIN);
+    s = step(s, press({ light: true }), CTX).state; // buffered, over the cap
+    s = run(s, fd.startup + fd.active + fd.recovery, NEUTRAL);
+    // Either idle (buffer expired) or a fresh chainIndex 1 — never > max.
+    if (s.action) expect(s.action.chainIndex).toBeLessThanOrEqual(LIGHT_MAX_CHAIN);
+  });
+
+  it('a press near the end of a stagger fires the instant the stagger ends', () => {
+    // The stagger boundary gets the buffer for free — updateInputBuffer runs
+    // ahead of the stagger early-return, so no special-casing was needed for
+    // it. (A stagger is 30 ticks and the window is 5, so a press at the START
+    // of one is correctly NOT held — that would be a queue, not a buffer.)
+    let s = createPlayerState(0, BUILD);
+    s = resolveIncomingHit(s, { hp: 5, poise: 14 }, BUILD).state;
+    s = resolveIncomingHit(s, { hp: 5, poise: 14 }, BUILD).state;
+    expect(isStaggered(s)).toBe(true);
+
+    s = run(s, s.staggerTicks - 3, NEUTRAL); // run it down to 3 ticks left
+    expect(s.staggerTicks).toBe(3);
+
+    s = step(s, press({ dodge: true }), CTX).state; // 3 → 2, inside the window
+    s = run(s, 2, NEUTRAL); // 2 → 1 → 0, stagger ends
+    expect(isStaggered(s)).toBe(false);
+
+    s = step(s, NEUTRAL, CTX).state; // first actionable tick
+    expect(s.action).toMatchObject({ id: 'dodge', phase: 'startup' });
+  });
+
+  it('a clean press against an already-idle player still fires on the very next tick (no added delay)', () => {
+    const s = step(createPlayerState(0, BUILD), press({ dodge: true }), CTX).state;
+    expect(s.action).toMatchObject({ id: 'dodge', phase: 'startup' });
   });
 });
