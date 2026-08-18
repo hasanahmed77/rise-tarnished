@@ -15,6 +15,7 @@ import {
   FP_REGEN_PER_TICK,
   FRAME_DATA,
   GUARD_BREAK_STAGGER_TICKS,
+  INPUT_BUFFER_TICKS,
   LIGHT_CHAIN_RECOVERY_STEP,
   LIGHT_MAX_CHAIN,
   MOVE_SPEED,
@@ -71,6 +72,22 @@ export interface Projectile {
   damage: number;
 }
 
+/** Edge-triggered intents — the ones that can be dropped by landing on a
+ * tick the player can't act (#20). `block` is level-triggered (held) and
+ * never needs buffering: `advancePhase`'s hold-release check reads it live
+ * every tick, so there's no single edge to miss. */
+type EdgeAction = 'dodge' | 'cast' | 'heavy' | 'light';
+
+/** Ticks remaining in each edge intent's buffer window; 0 = not buffered.
+ * Counts down every tick regardless of what the player is doing (mid-action,
+ * staggered) — see `updateInputBuffer`'s comment for why that's one rule
+ * instead of a special case per boundary. */
+export type InputBuffer = Record<EdgeAction, number>;
+
+function emptyInputBuffer(): InputBuffer {
+  return { dodge: 0, cast: 0, heavy: 0, light: 0 };
+}
+
 export interface PlayerCombatState {
   x: number;
   facing: 1 | -1;
@@ -93,6 +110,8 @@ export interface PlayerCombatState {
   projectiles: Projectile[];
   /** Monotonic id source so the scene can identify a projectile to consume. */
   nextProjectileId: number;
+  /** #20 — the input buffer. See InputBuffer's comment. */
+  inputBuffer: InputBuffer;
 }
 
 export interface CombatInput {
@@ -144,6 +163,7 @@ export function createPlayerState(x = 0, build?: PlayerBuild): PlayerCombatState
     ticksSinceFpSpend: FP_REGEN_DELAY_TICKS,
     projectiles: [],
     nextProjectileId: 0,
+    inputBuffer: emptyInputBuffer(),
   };
 }
 
@@ -235,7 +255,23 @@ function canAfford(state: PlayerCombatState, id: ActionId): boolean {
   return state.stamina >= fd.stamina && state.fp >= fd.fp;
 }
 
-/** Try to begin a new action from the given input. Returns true if one started. */
+function isBuffered(state: PlayerCombatState, id: EdgeAction): boolean {
+  return state.inputBuffer[id] > 0;
+}
+
+/** Consume a buffered intent — cleared only once it actually starts something,
+ * so an unaffordable buffered press (e.g. dodge queued on empty stamina)
+ * keeps re-checking every remaining tick of its window rather than being
+ * thrown away on the first tick it couldn't afford. */
+function consumeBuffer(state: PlayerCombatState, id: EdgeAction): void {
+  state.inputBuffer[id] = 0;
+}
+
+/** Try to begin a new action from the buffered edge intents (#20) — a press
+ * that landed while the player couldn't act is remembered for
+ * INPUT_BUFFER_TICKS and is exactly as eligible here as one on this exact
+ * tick, since `updateInputBuffer` already folded a fresh press into the
+ * buffer before this runs. Returns true if one started. */
 function tryStartFromInput(
   state: PlayerCombatState,
   input: CombatInput,
@@ -244,22 +280,27 @@ function tryStartFromInput(
 ): boolean {
   // Priority: dodge > cast > heavy > light > block. Dodge stays the panic-out
   // option; cast sits above melee since it's the deliberate, own-key commit.
-  if (input.dodge && canAfford(state, 'dodge')) {
+  if (isBuffered(state, 'dodge') && canAfford(state, 'dodge')) {
+    consumeBuffer(state, 'dodge');
     startAction(state, 'dodge', 1, ctx, events);
     return true;
   }
-  if (input.cast && canAfford(state, 'cast')) {
+  if (isBuffered(state, 'cast') && canAfford(state, 'cast')) {
+    consumeBuffer(state, 'cast');
     startAction(state, 'cast', 1, ctx, events);
     return true;
   }
-  if (input.heavy && canAfford(state, 'heavy')) {
+  if (isBuffered(state, 'heavy') && canAfford(state, 'heavy')) {
+    consumeBuffer(state, 'heavy');
     startAction(state, 'heavy', 1, ctx, events);
     return true;
   }
-  if (input.light && canAfford(state, 'light')) {
+  if (isBuffered(state, 'light') && canAfford(state, 'light')) {
+    consumeBuffer(state, 'light');
     startAction(state, 'light', 1, ctx, events);
     return true;
   }
+  // block stays level-triggered — no buffer to check, just the live key.
   if (input.block) {
     startAction(state, 'block', 1, ctx, events);
     return true;
@@ -314,6 +355,30 @@ function advancePhase(
   }
 }
 
+/**
+ * Refresh the input buffer for one tick (#20): a fresh edge press (re)arms
+ * its full window; otherwise an already-armed window ages down by one.
+ *
+ * Runs unconditionally — before the stagger check, before the action-state
+ * branch — so a press is captured the instant it happens regardless of what
+ * else is going on. That's deliberate: the drop this fixes isn't specific to
+ * the recovery→idle boundary it was reported against, it's any tick a
+ * `JustDown`-style edge gets read while the player can't act on it (mid
+ * action, or staggered). One rule that runs every tick is what makes "press
+ * dodge the instant hitstun ends" behave the same as "press it the instant
+ * recovery ends," rather than two boundaries needing two fixes.
+ */
+function updateInputBuffer(state: PlayerCombatState, input: CombatInput): void {
+  const edges: EdgeAction[] = ['dodge', 'cast', 'heavy', 'light'];
+  for (const id of edges) {
+    if (input[id]) {
+      state.inputBuffer[id] = INPUT_BUFFER_TICKS;
+    } else if (state.inputBuffer[id] > 0) {
+      state.inputBuffer[id] -= 1;
+    }
+  }
+}
+
 /** Emit a sorcery projectile from the caster's position, damage locked in
  * from intelligence at cast time (§6 curve). */
 function spawnProjectile(state: PlayerCombatState, ctx: StepContext, events: CombatEvent[]): void {
@@ -358,14 +423,21 @@ function tickProjectiles(state: PlayerCombatState, events: CombatEvent[]): void 
  * recovery.
  */
 export function step(prev: PlayerCombatState, input: CombatInput, ctx: StepContext): StepResult {
-  // Clone the projectiles array too: spawn/tick mutate it, and step must never
-  // touch the previous tick's state (the sim is value-semantic for replay).
+  // Clone the projectiles array (and the input buffer) too: spawn/tick and
+  // updateInputBuffer mutate them, and step must never touch the previous
+  // tick's state (the sim is value-semantic for replay).
   const state: PlayerCombatState = {
     ...prev,
     action: prev.action ? { ...prev.action } : null,
     projectiles: [...prev.projectiles],
+    inputBuffer: { ...prev.inputBuffer },
   };
   const events: CombatEvent[] = [];
+
+  // #20 — captures this tick's edge presses before anything below can drop
+  // them by being unable to act. See updateInputBuffer's comment for why
+  // this runs first, ahead of even the stagger check.
+  updateInputBuffer(state, input);
 
   // Passive per-tick resources (§3/§5/§6): poise damage decays; stamina and FP
   // regen after their post-spend delays (stamina paused while the guard is up).
@@ -404,15 +476,20 @@ export function step(prev: PlayerCombatState, input: CombatInput, ctx: StepConte
     return { state, events };
   }
 
-  // Light-attack chaining: a light press during a light's recovery starts the
-  // next chain step (bounded by LIGHT_MAX_CHAIN and stamina), extending pressure.
+  // Light-attack chaining: a (possibly buffered, #20) light intent during a
+  // light's recovery starts the next chain step (bounded by LIGHT_MAX_CHAIN
+  // and stamina), extending pressure. Buffered, not raw `input.light`, for
+  // the same reason tryStartFromInput is: a press thrown during the *active*
+  // window (before recovery even starts) used to be silently eaten the exact
+  // same way a press at the recovery→idle boundary was.
   if (
     state.action.id === 'light' &&
     state.action.phase === 'recovery' &&
-    input.light &&
+    isBuffered(state, 'light') &&
     state.action.chainIndex < LIGHT_MAX_CHAIN &&
     canAfford(state, 'light')
   ) {
+    consumeBuffer(state, 'light');
     startAction(state, 'light', state.action.chainIndex + 1, ctx, events);
     return { state, events };
   }

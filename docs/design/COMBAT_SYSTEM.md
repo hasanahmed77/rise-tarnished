@@ -35,6 +35,27 @@ attack: │  no hit   │ hitbox on│  vulnerable │
 Hitbox/hurtbox overlap is evaluated per tick by Phaser; the *consequence*
 (damage, stagger, death) is computed by the pure logic layer.
 
+### Input buffering (`#20`, shipped)
+
+Commitment means most ticks are ticks the player *can't* act on, so an
+edge-triggered press (light/heavy/dodge/cast) frequently lands somewhere it
+can't be used. Without a buffer those presses are silently dropped — most
+painfully on the exact tick an action's recovery ends, where the input is
+consumed by the same tick that clears the action.
+
+Every edge press is therefore held for **`INPUT_BUFFER_TICKS` = 5** (~83ms)
+and applied on the first tick the player can act. The window is a *courtesy
+for near-misses, not a queue*: a press from earlier than that expires, so
+the boss punishing a whiffed heavy can't be undone by an input thrown a
+second ago. Idle presses still fire immediately and never touch the window,
+so a clean press has no added latency.
+
+The rule runs before the stagger check and before the action-state branch,
+so it covers every "player can't act right now" boundary — mid-action,
+mid-stagger, and the recovery→idle seam — with one mechanism rather than a
+per-boundary special case. `block` is excluded deliberately: it's
+level-triggered (read live every tick), so it has no edge to miss.
+
 ## 3. Player resources
 
 | Resource | Base | Notes |
