@@ -11,6 +11,8 @@ import {
 import { MARGIT_BOSS_ID } from '@/game/boss/bossTuning';
 import { createClient } from '@/lib/supabase/client';
 import type { GameSettings } from '@/lib/settings';
+import { MainMenu } from './MainMenu';
+import { buttonClass } from './AuthButton';
 
 /** Server-persisted result of resolve_attempt (#11) — distinct from the
  * bridge's FightOutcome, whose estimatedRuneDelta is only an optimistic
@@ -198,41 +200,38 @@ export function GameCanvas({ build, settings }: { build: PlayerBuild; settings: 
       <p className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 font-mono text-xs text-neutral-500">
         {engineReady ? 'engine: ready (bridge ok)' : 'engine: booting…'}
       </p>
-      {/* Hidden once the fight has resolved — CombatScene already refuses to
+      {/* right-32, beside (not under) PlayPage's SignOutButton at
+       * top-3 right-3 — the settings gear already owns top-3 left-3, so this
+       * is the only free corner without lifting state up into PlayPage.
+       * Hidden once the fight has resolved — CombatScene already refuses to
        * pause a finished scene, so a visible Pause button there would just
-       * be a dead control. */}
+       * be a dead control. Same palette as every other UI-chrome button
+       * (AuthButton.tsx's buttonClass) — this used to be its own gray. */}
       {engineReady && !resolution && !paused && (
         <button
           type="button"
           onClick={() => bridgeRef.current?.toGame.emit('game:pause-toggle', undefined)}
-          className="absolute top-3 right-3 rounded border border-neutral-700 bg-black/40 px-3 py-1 font-mono text-xs text-neutral-300 transition hover:bg-black/60"
+          className={`absolute top-3 right-32 ${buttonClass}`}
         >
           Pause
         </button>
       )}
+      {/* Reuses the exact landing-screen MainMenu (#66) rather than a
+       * separate overlay — same stats, same layout, just "paused" copy and
+       * a Resume button instead of Play. Wrapped in `absolute inset-0`:
+       * MainMenu's own root is `h-full w-full` but not itself positioned
+       * (its other use, in PlayShell, already IS the whole screen), so this
+       * is what makes it overlay the canvas here instead of just flowing
+       * below it. */}
       {paused && (
-        <PauseOverlay
-          onResume={() => bridgeRef.current?.toGame.emit('game:pause-toggle', undefined)}
-        />
+        <div className="absolute inset-0">
+          <MainMenu
+            mode="paused"
+            onAction={() => bridgeRef.current?.toGame.emit('game:pause-toggle', undefined)}
+          />
+        </div>
       )}
       {resolution && <ResolutionOverlay state={resolution} recap={recap} />}
-    </div>
-  );
-}
-
-function PauseOverlay({ onResume }: { onResume: () => void }) {
-  return (
-    <div className="absolute inset-0 flex items-center justify-center bg-black/80 font-mono text-neutral-100">
-      <div className="flex flex-col items-center gap-4 text-center">
-        <h2 className="text-2xl text-[#d4c9a8]">Paused</h2>
-        <button
-          type="button"
-          onClick={onResume}
-          className="rounded border border-amber-700 bg-transparent px-6 py-2 text-sm text-amber-300 transition hover:bg-amber-900/30"
-        >
-          Resume
-        </button>
-      </div>
     </div>
   );
 }
@@ -421,7 +420,7 @@ function ResolutionOverlay({ state, recap }: { state: ResolutionState; recap: Re
         <button
           type="button"
           onClick={() => window.location.reload()}
-          className="mt-2 rounded border border-neutral-600 px-4 py-1.5 text-sm hover:bg-neutral-800"
+          className="mt-2 rounded border border-[#6b5f52] bg-transparent px-4 py-1.5 font-mono text-sm text-[#d4c9a8] transition hover:bg-[#2a2a2a]"
         >
           Fight again
         </button>

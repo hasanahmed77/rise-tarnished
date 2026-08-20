@@ -654,14 +654,23 @@ export class CombatScene extends Phaser.Scene {
    */
   private togglePause(): void {
     if (!this.ready || this.finished) return;
-    if (this.scene.isPaused()) {
-      this.scene.resume();
-      this.ambience?.resume();
-    } else {
+    // Phaser 4's ScenePlugin.pause()/resume() don't apply synchronously —
+    // both just call SceneManager.queueOp(...), which defers the actual
+    // status flip to the manager's queue, processed at the top of the next
+    // step. Re-reading this.scene.isPaused() right after calling pause()/
+    // resume() would therefore return the STALE, pre-toggle value — so the
+    // broadcast below uses the intent computed here, before queuing,
+    // rather than re-querying Phaser for something that hasn't taken
+    // effect yet.
+    const willPause = !this.scene.isPaused();
+    if (willPause) {
       this.scene.pause();
       this.ambience?.pause();
+    } else {
+      this.scene.resume();
+      this.ambience?.resume();
     }
-    this.bridge?.toShell.emit('game:pause-changed', { paused: this.scene.isPaused() });
+    this.bridge?.toShell.emit('game:pause-changed', { paused: willPause });
   }
 
   private reportOutcome(result: FightResult): void {
