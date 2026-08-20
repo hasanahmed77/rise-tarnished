@@ -294,6 +294,49 @@ This gives us, for free:
 2. **Deterministic replay** — log + seed reproduces any fight for debugging.
 3. **Balance telemetry** — which moves kill, which tactics never fire.
 
+## 8a. Between-attempt reweighting (ADR-0002's promised sibling to `#13`)
+
+**Status (`#64`, shipped):** the mechanism ADR-0002 committed to at authoring
+time — "OpenAI adjusts starting weights for the next attempt; it never
+participates in the frame loop" — now has an implementation. This is the
+piece that makes adaptation persist *across* attempts, not just within one:
+§5/§8 above are real-time, reset every fight (`createTracker()` is fresh in
+`createBossState()`); this is what carries a habit shown over several
+attempts forward as a head start on the next one.
+
+Flow, triggered right after `resolve_attempt` persists an attempt (same
+trigger `#13`'s recap uses):
+
+1. The shell fires `POST /api/reweight { attemptId }` — fire-and-forget, same
+   non-blocking posture as the recap call.
+2. The route re-fetches the attempt's own decision log and the player's
+   current `boss_weight_overrides` row server-side, under the caller's own
+   RLS-scoped session — never a client-supplied payload
+   (`src/app/api/reweight/handler.ts`).
+3. `buildReweightPrompt` (`src/game/attempt/reweight.ts`) asks the model for
+   adjustments to `BASE_SCORE` (tactics.ts) and `WeightRule` gains
+   (weighting.ts), naming only the real tactic/tag vocabulary — the same
+   "never invent what isn't there" discipline `#13`'s `isGrounded()` applies
+   to prose, applied here to numbers.
+4. `validateAndClampWeights` drops any name outside that vocabulary and
+   clamps every surviving number to the same order of magnitude a
+   hand-authored table entry already lives in. A proposal that fails
+   entirely (bad JSON, all-rejected names) writes nothing — the player's
+   existing weights are untouched, per ADR-0002's fallback guarantee.
+5. A validated proposal is persisted via the `upsert_boss_weight_overrides`
+   SECURITY DEFINER RPC (`supabase/migrations/20260818120000_...sql`).
+6. The *next* fight against that boss reads the row back
+   (`fetchWeightOverrides` in `GameCanvas.tsx`) before `startFight()`, and
+   `applyWeightOverrides` (weighting.ts) merges it onto the boss's defaults —
+   additively; a tag/tactic with no override keeps its hardcoded value.
+
+F4's runtime clamp on the resulting multiplier (weighting.ts) is untouched by
+any of this — it bounds the *effective* multiplier at combat time regardless
+of what a reweight ever wrote, so a corrupted or adversarial override can
+retune *how much* a signal matters but can never itself make a fight unfair.
+`fairness.property.test.ts` proves this composition holds for adversarial
+override values, not just adversarial signals.
+
 ## 9. Testing strategy (maps to SDLC §8)
 
 | Layer | Test type | Example |

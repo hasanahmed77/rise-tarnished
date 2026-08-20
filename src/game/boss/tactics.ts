@@ -54,10 +54,17 @@ export function createTacticState(rng: RngState): TacticState {
 /** Tactics that can be *scored into* at a re-decision. PUNISH is excluded by
  * type: it is trigger-only (entered solely via its opening + F5 gate), so a
  * tuner can't mistakenly give it a base score that would silently do nothing. */
-type ScoredTactic = Exclude<Tactic, 'PUNISH'>;
+/** Exported for #64: a between-attempt override map is keyed by this same
+ * type, so "which tactics can be overridden" can never drift from "which
+ * tactics are actually scored." */
+export type ScoredTactic = Exclude<Tactic, 'PUNISH'>;
 
-/** Base scores per scoreable tactic before behavior weighting. Data, not code. */
-const BASE_SCORE: Record<ScoredTactic, number> = {
+/** Base scores per scoreable tactic before behavior weighting. Data, not
+ * code. Exported (#64): the between-attempt default a player's overrides
+ * start from and eventually decay toward, and the source of truth for
+ * "which tactic names are real" that reweight.ts validates proposals
+ * against — never duplicated as a second hardcoded list. */
+export const BASE_SCORE: Record<ScoredTactic, number> = {
   NEUTRAL: 1.0,
   PRESSURE: 0.7,
   BAIT: 0.6,
@@ -176,6 +183,12 @@ export function tickTactic(
   prev: TacticState,
   getSignals: () => BehaviorSignals,
   ctx: TacticContext,
+  /** #64 — a player's persisted, between-attempt drift on top of BASE_SCORE,
+   * keyed by the same ScoredTactic type so an unknown key can't type-check.
+   * A tactic missing from this map keeps its hardcoded default — this is
+   * strictly additive, so every existing caller (every current test, the
+   * fairness/adaptation suites) is unaffected by omitting it. */
+  baseScoreOverrides?: Partial<Record<ScoredTactic, number>>,
 ): TacticDecision {
   const state: TacticState = { ...prev };
   state.ticksInTactic += 1;
@@ -203,7 +216,9 @@ export function tickTactic(
   // objects for the winner's `because` means the logged reason is literally
   // the arithmetic that won, not a second pass over the same inputs.
   const details = candidates.map((t) => tacticBehaviorModDetailed(t, signals, ctx));
-  const scores = candidates.map((t, i) => BASE_SCORE[t] * details[i].mod);
+  const scores = candidates.map(
+    (t, i) => (baseScoreOverrides?.[t] ?? BASE_SCORE[t]) * details[i].mod,
+  );
   const maxScore = Math.max(...scores);
   const exps = scores.map((sc) => Math.exp((sc - maxScore) / TACTIC_SOFTMAX_TEMPERATURE));
   const total = exps.reduce((a, b) => a + b, 0);

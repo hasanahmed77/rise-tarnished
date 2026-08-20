@@ -45,7 +45,7 @@ import {
   type TrackerState,
 } from './behaviorTracker';
 import type { PlayerCombatState } from '../combat/playerCombat';
-import { createTacticState, tickTactic, type TacticState } from './tactics';
+import { createTacticState, tickTactic, type ScoredTactic, type TacticState } from './tactics';
 import type { WeightRule } from './weighting';
 import type { SignalContribution } from './decisionLog';
 import type { MoveDef, MoveTable, PlayerActionTag, Tactic } from './types';
@@ -105,6 +105,10 @@ export interface BossStepContext {
   lastPlayerAction: PlayerActionTag | null;
   /** Per-boss behaviorMod mapping (weighting.ts). Empty = flat weights. */
   weightRules: WeightRule[];
+  /** #64 — a player's persisted, between-attempt drift on tactics.ts's
+   * BASE_SCORE. Undefined = every tactic uses its hardcoded default, same
+   * as before this existed. */
+  tacticBaseScoreOverrides?: Partial<Record<ScoredTactic, number>>;
   /** This tick's player telemetry for the behavior tracker (§5). */
   observed: {
     playerBlocking: boolean;
@@ -194,12 +198,17 @@ export function step(
   let signalsCache: BehaviorSignals | null = null;
   const getSignals = () => (signalsCache ??= computeSignals(state.tracker));
 
-  const tacticDecision = tickTactic(state.tactic, getSignals, {
-    distance,
-    bossPoiseFraction: Math.min(1, state.poiseDamage / BOSS_POISE_THRESHOLD),
-    bossPostureFraction: state.posture.value / POSTURE_MAX,
-    punishableOpening: ctx.observed.punishableOpening,
-  });
+  const tacticDecision = tickTactic(
+    state.tactic,
+    getSignals,
+    {
+      distance,
+      bossPoiseFraction: Math.min(1, state.poiseDamage / BOSS_POISE_THRESHOLD),
+      bossPostureFraction: state.posture.value / POSTURE_MAX,
+      punishableOpening: ctx.observed.punishableOpening,
+    },
+    ctx.tacticBaseScoreOverrides,
+  );
   state.tactic = tacticDecision.state;
   if (tacticDecision.changed)
     events.push({

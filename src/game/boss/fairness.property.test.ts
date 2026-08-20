@@ -16,7 +16,13 @@ import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 import { step, createBossState } from './bossCombat';
 import { margitMoves, margitTopLevelMoveIds } from './margitMoves';
-import { margitWeightRules, behaviorMod, BEHAVIOR_MOD_MAX, BEHAVIOR_MOD_MIN } from './weighting';
+import {
+  applyWeightOverrides,
+  margitWeightRules,
+  behaviorMod,
+  BEHAVIOR_MOD_MAX,
+  BEHAVIOR_MOD_MIN,
+} from './weighting';
 import { computeSignals, createTracker, trackTick, type BehaviorSignals } from './behaviorTracker';
 import { MAX_CHAIN_PHASE1, MIN_INTER_SEQUENCE_GAP_TICKS, MIN_TELL_FRAMES } from './moveSchema';
 import { PUNISH_COOLDOWN_TICKS } from './tactics';
@@ -91,6 +97,32 @@ describe('pure fairness properties (fast-check)', () => {
     );
     fc.assert(
       fc.property(arbMove, arbSignals, arbRules, (move, signals, rules) => {
+        const mod = behaviorMod(move, signals, rules);
+        return mod >= BEHAVIOR_MOD_MIN && mod <= BEHAVIOR_MOD_MAX;
+      }),
+      { numRuns: 500 },
+    );
+  });
+
+  it('F4: still holds after ANY between-attempt override is merged in (#64)', () => {
+    // The exact composition CombatScene.startFight performs: a player's
+    // persisted (or, worst case, adversarial/corrupted) gain overrides
+    // merged onto the defaults via applyWeightOverrides, THEN scored. F4 is
+    // a runtime clamp inside behaviorMod itself, so this should hold no
+    // matter what a reweight ever wrote — the property is that the merge
+    // step introduces no new way to escape the clamp, not that reweight.ts's
+    // own [-4, 4] bound was respected (validateAndClampWeights is tested on
+    // its own bounds separately, in reweight.test.ts).
+    const arbMove = fc
+      .subarray(ALL_TAGS, { minLength: 0, maxLength: 4 })
+      .map((tags): MoveDef => ({ ...margitMoves['margit.cane_swing_1'], tags }));
+    const arbOverrides = fc.dictionary(
+      fc.constantFrom(...ALL_TAGS),
+      fc.double({ min: -1e6, max: 1e6, noNaN: true }),
+    );
+    fc.assert(
+      fc.property(arbMove, arbSignals, arbOverrides, (move, signals, overrides) => {
+        const rules = applyWeightOverrides(margitWeightRules, overrides);
         const mod = behaviorMod(move, signals, rules);
         return mod >= BEHAVIOR_MOD_MIN && mod <= BEHAVIOR_MOD_MAX;
       }),

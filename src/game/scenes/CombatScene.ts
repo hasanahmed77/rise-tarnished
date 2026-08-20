@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import type { GameBridge, PlayerBuild } from '../bridge';
+import type { GameBridge, PlayerBuild, WeightOverrides } from '../bridge';
 import {
   ATTACK_DAMAGE,
   POSTURE_MAX,
@@ -33,7 +33,7 @@ import {
   type BossCombatState,
   type BossStepContext,
 } from '../boss/bossCombat';
-import { margitWeightRules } from '../boss/weighting';
+import { applyWeightOverrides, margitWeightRules } from '../boss/weighting';
 import {
   MAX_LOGGED_DECISIONS,
   type DecisionEvent,
@@ -354,7 +354,14 @@ export class CombatScene extends Phaser.Scene {
    * sim/boss state and the entity sprites positioned from it. Runs once,
    * triggered by the shell's 'fight:start' bridge event — the scene is
    * otherwise idle (static HUD chrome only) until this fires. */
-  private startFight({ build }: { bossId: string; build: PlayerBuild }): void {
+  private startFight({
+    build,
+    weightOverrides,
+  }: {
+    bossId: string;
+    build: PlayerBuild;
+    weightOverrides?: WeightOverrides;
+  }): void {
     // Reset alongside the sim it describes. `attemptId` is minted once per
     // scene instance, so in practice this runs once — but the log must not be
     // able to carry decisions from a previous sim into a new attempt's row.
@@ -378,7 +385,12 @@ export class CombatScene extends Phaser.Scene {
       minX: ARENA_MARGIN,
       maxX: this.scale.width - ARENA_MARGIN,
       lastPlayerAction: null,
-      weightRules: margitWeightRules,
+      // #64 — a player's persisted, between-attempt drift on top of the
+      // defaults. `applyWeightOverrides` is a no-op merge when
+      // `weightOverrides` is absent/empty, so this is the same array as
+      // before #64 for every player on their first attempt against a boss.
+      weightRules: applyWeightOverrides(margitWeightRules, weightOverrides?.weightRuleGains ?? {}),
+      tacticBaseScoreOverrides: weightOverrides?.tacticBaseScore,
       observed: {
         playerBlocking: false,
         dodgeStarted: false,

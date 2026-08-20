@@ -60,3 +60,25 @@ export function behaviorModDetailed(
 export function behaviorMod(move: MoveDef, signals: BehaviorSignals, rules: WeightRule[]): number {
   return behaviorModDetailed(move, signals, rules).mod;
 }
+
+/**
+ * #64 — merge a player's persisted, between-attempt gain overrides onto a
+ * boss's default rule table, keyed by tag (every tag in `defaults` is
+ * unique, so a tag is a sound key). A tag missing from `overrides` keeps its
+ * default gain unchanged; this can never add or remove a rule, only retune
+ * an existing one — same "adaptation shifts tendencies, never creates or
+ * removes moves" property the file header already states for signals.
+ *
+ * Pure and boss-agnostic on purpose: `BossStepContext.weightRules` already
+ * accepts any `WeightRule[]`, so CombatScene calls this once per fight start
+ * and passes the result straight through — no other code needs to know
+ * overrides exist.
+ */
+export function applyWeightOverrides(
+  defaults: WeightRule[],
+  overrides: Partial<Record<MoveTag, number>>,
+): WeightRule[] {
+  return defaults.map((rule) =>
+    rule.tag in overrides ? { ...rule, gain: overrides[rule.tag]! } : rule,
+  );
+}
