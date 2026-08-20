@@ -343,9 +343,14 @@ export class CombatScene extends Phaser.Scene {
       this.settings = settings;
       this.sound.mute = settings.muted;
     });
+    // #66 — Pause button / Escape, from the shell (a DOM-level listener, so
+    // it works even while this scene is itself paused and its own input
+    // plugin isn't running).
+    const offPauseToggle = this.bridge?.toGame.on('game:pause-toggle', () => this.togglePause());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       offFightStart?.();
       offSettings?.();
+      offPauseToggle?.();
     });
     this.bridge?.toShell.emit('game:ready', undefined);
   }
@@ -630,6 +635,33 @@ export class CombatScene extends Phaser.Scene {
         action: this.sim.action?.id ?? null,
       },
     });
+  }
+
+  /**
+   * #66 — flip Phaser's own scene pause, which is enough on its own: it
+   * stops `update()` from being called at all, so the fixed-timestep
+   * accumulator simply stops advancing (no runaway catch-up on resume,
+   * since no delta accrues while the scene manager skips a paused scene)
+   * and every in-flight tween/timer the scene owns pauses with it. The
+   * ambience bed is a real Sound object, though, which Phaser's global
+   * Sound Manager keeps playing through a scene pause unless told
+   * otherwise — paused/resumed explicitly here so it doesn't run under a
+   * frozen fight.
+   *
+   * Guarded the same way input already is: nothing to pause before
+   * `startFight()` has run, and pausing a scene that already reported its
+   * outcome would freeze a fight that's already over.
+   */
+  private togglePause(): void {
+    if (!this.ready || this.finished) return;
+    if (this.scene.isPaused()) {
+      this.scene.resume();
+      this.ambience?.resume();
+    } else {
+      this.scene.pause();
+      this.ambience?.pause();
+    }
+    this.bridge?.toShell.emit('game:pause-changed', { paused: this.scene.isPaused() });
   }
 
   private reportOutcome(result: FightResult): void {

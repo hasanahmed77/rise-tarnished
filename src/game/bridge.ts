@@ -64,12 +64,23 @@ export interface ShellToGameEvents {
    * `loadSettings()` directly at creation (see its own comment) — this event
    * is only for *live* updates to an already-running scene. */
   'settings:update': GameSettings;
+  /** #66 — the shell (a Pause button click, or an Escape keypress) asks the
+   * scene to flip its own pause state. A toggle, not two separate events:
+   * CombatScene is the only source of truth for whether it's actually
+   * paused (see 'game:pause-changed'), so the shell never has to guess
+   * which direction to request. */
+  'game:pause-toggle': void;
 }
 
 /** Phaser → React */
 export interface GameToShellEvents {
   'game:ready': void;
   'fight:outcome': FightOutcome;
+  /** #66 — CombatScene's authoritative pause state, broadcast after every
+   * successful toggle (and never on a toggle it ignored — see
+   * togglePause()'s own guards). The shell's UI is purely reactive to this;
+   * it never flips its own `paused` boolean optimistically. */
+  'game:pause-changed': { paused: boolean };
 }
 
 type Handler<P> = (payload: P) => void;
