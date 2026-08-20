@@ -32,17 +32,27 @@ describe('OPENAI_API_KEY stays server-only (ADR-0004)', () => {
   const srcDir = path.resolve(process.cwd(), 'src');
   const files = collectSourceFiles(srcDir);
 
-  it('is referenced from exactly one file: the recap handler', () => {
-    const hits = files.filter((f) => readFileSync(f, 'utf8').includes('OPENAI_API_KEY'));
-    expect(hits).toEqual([path.join(srcDir, 'app', 'api', 'recap', 'handler.ts')]);
+  it('is referenced from exactly the two OpenAI-calling handlers: recap and reweight (#64)', () => {
+    const hits = files.filter((f) => readFileSync(f, 'utf8').includes('OPENAI_API_KEY')).sort();
+    expect(hits).toEqual(
+      [
+        path.join(srcDir, 'app', 'api', 'recap', 'handler.ts'),
+        path.join(srcDir, 'app', 'api', 'reweight', 'handler.ts'),
+      ].sort(),
+    );
   });
 
-  it('that one file is not a client component', () => {
+  it('neither of those files is a client component', () => {
     // route.ts/handler.ts have no 'use client' directive and Next.js Route
     // Handlers only ever execute server-side, so this is a second, cheap
     // confirmation on top of the file-identity check above.
-    const handler = readFileSync(path.join(srcDir, 'app', 'api', 'recap', 'handler.ts'), 'utf8');
-    expect(handler).not.toContain("'use client'");
+    for (const rel of [
+      ['app', 'api', 'recap', 'handler.ts'],
+      ['app', 'api', 'reweight', 'handler.ts'],
+    ]) {
+      const handler = readFileSync(path.join(srcDir, ...rel), 'utf8');
+      expect(handler).not.toContain("'use client'");
+    }
   });
 
   it('never appears with a NEXT_PUBLIC_ prefix anywhere in src', () => {

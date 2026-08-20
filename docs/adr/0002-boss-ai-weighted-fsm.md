@@ -54,5 +54,12 @@ intelligent rather than random. Full spec: `docs/design/BOSS_AI.md`.
 - **Negative:** adaptation is bounded by the signals and transitions we author —
   less "emergent" than a learned policy; requires tuning to *feel* adaptive.
 - **Follow-ups (resolved in `docs/design/BOSS_AI.md`):** v1 behavior signals
-  (§5), fairness invariants F1–F8 (§6), move tables as data (§4). Remaining:
-  contract for the async reweighting payload.
+  (§5), fairness invariants F1–F8 (§6), move tables as data (§4). **Resolved
+  (#64):** the async reweighting payload's contract — `POST /api/reweight`
+  fires right after `resolve_attempt` succeeds, re-derives the prompt from the
+  attempt's own decision log (`src/game/attempt/reweight.ts`), and persists
+  only a closed-vocabulary, bounds-clamped subset of the model's proposal to
+  `boss_weight_overrides` via the `upsert_boss_weight_overrides` RPC. F4's
+  runtime clamp (`weighting.ts`) still bounds the resulting multiplier
+  regardless of what a reweight ever wrote — a property-based test
+  (`fairness.property.test.ts`) proves this holds for adversarial overrides.

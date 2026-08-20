@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  applyWeightOverrides,
   behaviorMod,
   margitWeightRules,
   BEHAVIOR_MOD_MAX,
@@ -36,5 +37,33 @@ describe('behaviorMod (F4)', () => {
     const maxed = { ...NEUTRAL_SIGNALS, dodgeReflex: 1, turtleIndex: 1 };
     expect(behaviorMod(delayed, maxed, extreme)).toBe(BEHAVIOR_MOD_MAX);
     expect(behaviorMod(grab, maxed, extreme)).toBe(BEHAVIOR_MOD_MIN);
+  });
+});
+
+describe('applyWeightOverrides (#64)', () => {
+  it('leaves the defaults untouched when there are no overrides', () => {
+    expect(applyWeightOverrides(margitWeightRules, {})).toEqual(margitWeightRules);
+  });
+
+  it('retunes only the tag an override names, leaving every other rule as-is', () => {
+    const merged = applyWeightOverrides(margitWeightRules, { delayed: 1.5 });
+    const delayedRule = merged.find((r) => r.tag === 'delayed');
+    expect(delayedRule?.gain).toBe(1.5);
+
+    const untouched = merged.filter((r) => r.tag !== 'delayed');
+    const originalUntouched = margitWeightRules.filter((r) => r.tag !== 'delayed');
+    expect(untouched).toEqual(originalUntouched);
+  });
+
+  it('never adds or removes rules — same tags in, same tags out', () => {
+    const merged = applyWeightOverrides(margitWeightRules, { delayed: 9, grab: -9 });
+    expect(merged.map((r) => r.tag)).toEqual(margitWeightRules.map((r) => r.tag));
+    expect(merged).toHaveLength(margitWeightRules.length);
+  });
+
+  it('does not mutate the input array', () => {
+    const before = margitWeightRules.map((r) => ({ ...r }));
+    applyWeightOverrides(margitWeightRules, { delayed: 42 });
+    expect(margitWeightRules).toEqual(before);
   });
 });

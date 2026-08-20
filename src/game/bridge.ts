@@ -6,12 +6,24 @@
 // These are the v1 stubs; the contract grows via PR as features land.
 
 import type { DecisionEvent } from './boss/decisionLog';
+import type { ScoredTactic } from './boss/tactics';
+import type { MoveTag } from './boss/types';
 import type { GameSettings } from '@/lib/settings';
 
 export interface PlayerBuild {
   vitality: number;
   dexterity: number;
   intelligence: number;
+}
+
+/** #64 — a player's persisted, between-attempt drift for one boss, read from
+ * `boss_weight_overrides` before the fight starts. Absent entirely (rather
+ * than present-but-empty) on a player's first attempt against a boss, or if
+ * the fetch fails — both cases fall back to the boss's hardcoded defaults,
+ * per ADR-0002 ("falls back to heuristic weights if unavailable"). */
+export interface WeightOverrides {
+  tacticBaseScore: Partial<Record<ScoredTactic, number>>;
+  weightRuleGains: Partial<Record<MoveTag, number>>;
 }
 
 export interface FightOutcome {
@@ -38,7 +50,14 @@ export interface FightOutcome {
 
 /** React → Phaser */
 export interface ShellToGameEvents {
-  'fight:start': { bossId: string; build: PlayerBuild };
+  'fight:start': {
+    bossId: string;
+    build: PlayerBuild;
+    /** #64 — optional: undefined means "use the hardcoded defaults", not
+     * "wait for this". The shell resolves this before emitting, so
+     * CombatScene never blocks fight start on a network round trip. */
+    weightOverrides?: WeightOverrides;
+  };
   /** #56 — pushed once the game is created and again on every change from
    * SettingsPanel, so a toggle mid-fight (e.g. muting) applies immediately
    * rather than waiting for the next fight. CombatScene also reads

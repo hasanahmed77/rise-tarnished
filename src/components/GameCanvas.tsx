@@ -2,7 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type Phaser from 'phaser';
-import { GameBridge, type FightOutcome, type PlayerBuild } from '@/game/bridge';
+import {
+  GameBridge,
+  type FightOutcome,
+  type PlayerBuild,
+  type WeightOverrides,
+} from '@/game/bridge';
 import { MARGIT_BOSS_ID } from '@/game/boss/bossTuning';
 import { createClient } from '@/lib/supabase/client';
 import type { GameSettings } from '@/lib/settings';
@@ -69,14 +74,23 @@ export function GameCanvas({ build, settings }: { build: PlayerBuild; settings: 
     bridgeRef.current = bridge;
     const offReady = bridge.toShell.on('game:ready', () => {
       setEngineReady(true);
-      // The engine is idle until this carries the real build (CombatScene's
-      // startFight()) — never the hardcoded sandbox build it used before #12.
-      bridge.toGame.emit('fight:start', { bossId: MARGIT_BOSS_ID, build });
-      // CombatScene also self-initializes from localStorage at creation
-      // (see its comment) — this covers the case where SettingsPanel already
-      // pushed an update before the game finished booting, which the
-      // settings-push effect below would have sent to no listener.
-      bridge.toGame.emit('settings:update', settingsRef.current);
+      // #64 — best-effort fetch of this player's persisted weight overrides
+      // for this boss before the fight starts. Never blocks/holds up
+      // 'fight:start' waiting on this any longer than one network round
+      // trip already in flight when the engine finished booting, and any
+      // failure (no row yet, network error) resolves to undefined — falls
+      // back to the boss's hardcoded defaults (ADR-0002).
+      void fetchWeightOverrides(MARGIT_BOSS_ID).then((weightOverrides) => {
+        if (disposed) return;
+        // The engine is idle until this carries the real build (CombatScene's
+        // startFight()) — never the hardcoded sandbox build it used before #12.
+        bridge.toGame.emit('fight:start', { bossId: MARGIT_BOSS_ID, build, weightOverrides });
+        // CombatScene also self-initializes from localStorage at creation
+        // (see its comment) — this covers the case where SettingsPanel already
+        // pushed an update before the game finished booting, which the
+        // settings-push effect below would have sent to no listener.
+        bridge.toGame.emit('settings:update', settingsRef.current);
+      });
     });
     const offOutcome = bridge.toShell.on('fight:outcome', (outcome) => {
       setResolution({ status: 'resolving', outcome });
@@ -98,6 +112,13 @@ export function GameCanvas({ build, settings }: { build: PlayerBuild; settings: 
               setRecap(text ? { status: 'ready', text } : { status: 'unavailable' });
             });
           }
+
+          // #64 — between-attempt reweighting (ADR-0002). Every attempt, win
+          // or loss: the boss should retune on what it saw regardless of
+          // outcome. Fire-and-forget, same as the recap call above — this
+          // fight's overlay is already fully usable without it, and the
+          // result only ever affects the *next* fight the player starts.
+          void triggerReweight(outcome.attemptId);
         },
         (err: unknown) => {
           if (disposed) return;
@@ -225,6 +246,56 @@ async function fetchRecap(attemptId: string): Promise<string | null> {
     return typeof text === 'string' ? text : null;
   } catch {
     return null;
+  }
+}
+
+/** Reads this player's persisted weight overrides for a boss directly via
+ * the Supabase client (ADR-0003: client-read-only, RLS-scoped to the
+ * caller's own row) — a read needs no server route, unlike the write (see
+ * handleReweightRequest, which goes through the RPC). Returns undefined on
+ * ANY failure — no row yet, network error, malformed columns — so the
+ * caller falls back to the boss's hardcoded defaults rather than blocking
+ * fight start on this. */
+async function fetchWeightOverrides(bossId: string): Promise<WeightOverrides | undefined> {
+  try {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from('boss_weight_overrides')
+      .select('tactic_base_score, weight_rule_gains')
+      .eq('boss_id', bossId)
+      .maybeSingle();
+    if (!data) return undefined;
+    const row = data as { tactic_base_score: unknown; weight_rule_gains: unknown };
+    if (typeof row.tactic_base_score !== 'object' || row.tactic_base_score === null) {
+      return undefined;
+    }
+    if (typeof row.weight_rule_gains !== 'object' || row.weight_rule_gains === null) {
+      return undefined;
+    }
+    return {
+      tacticBaseScore: row.tactic_base_score as WeightOverrides['tacticBaseScore'],
+      weightRuleGains: row.weight_rule_gains as WeightOverrides['weightRuleGains'],
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+/** Calls POST /api/reweight (#64, ADR-0002). Fire-and-forget — never throws,
+ * result unused by the caller. The route itself already collapses every
+ * failure mode (no attempt row, empty log, provider error, an all-rejected
+ * proposal) into `{ updated: false }`, so there is nothing meaningful to do
+ * with the response here; the only observable effect is on the *next*
+ * fight's `fetchWeightOverrides` call. */
+async function triggerReweight(attemptId: string): Promise<void> {
+  try {
+    await fetch('/api/reweight', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ attemptId }),
+    });
+  } catch {
+    // Non-blocking by design (ADR-0002) — nothing to surface to the player.
   }
 }
 
