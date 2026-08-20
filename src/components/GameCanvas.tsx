@@ -50,6 +50,10 @@ export function GameCanvas({ build, settings }: { build: PlayerBuild; settings: 
   const [engineReady, setEngineReady] = useState(false);
   const [resolution, setResolution] = useState<ResolutionState | null>(null);
   const [recap, setRecap] = useState<RecapState>({ status: 'idle' });
+  // #66 — purely reactive to CombatScene's own 'game:pause-changed' echo,
+  // never flipped optimistically here: the scene is the only thing that
+  // knows whether a toggle actually took effect (see its own guards).
+  const [paused, setPaused] = useState(false);
 
   // #56 — the bridge and the latest `settings` both need to outlive any
   // single render so the two effects below can reach them: the bridge is
@@ -92,7 +96,15 @@ export function GameCanvas({ build, settings }: { build: PlayerBuild; settings: 
         bridge.toGame.emit('settings:update', settingsRef.current);
       });
     });
+    const offPauseChanged = bridge.toShell.on('game:pause-changed', ({ paused: p }) => {
+      setPaused(p);
+    });
     const offOutcome = bridge.toShell.on('fight:outcome', (outcome) => {
+      // The fight is over — a stale "paused" overlay must not survive it
+      // (CombatScene's own togglePause() guard already refuses to pause a
+      // finished scene, but this covers the case where the fight ended
+      // while already paused).
+      setPaused(false);
       setResolution({ status: 'resolving', outcome });
       setRecap({ status: 'idle' });
       void resolveAttempt(outcome).then(
@@ -141,6 +153,7 @@ export function GameCanvas({ build, settings }: { build: PlayerBuild; settings: 
       disposed = true;
       offReady();
       offOutcome();
+      offPauseChanged();
       game?.destroy(true);
       game = null;
       bridge.dispose();
@@ -162,13 +175,64 @@ export function GameCanvas({ build, settings }: { build: PlayerBuild; settings: 
     bridgeRef.current?.toGame.emit('settings:update', settings);
   }, [settings]);
 
+  // #66 — Escape toggles pause. A document-level listener rather than a
+  // Phaser-side key: it needs to keep working while the scene itself is
+  // paused (its own input plugin pauses with it), and it's how a Pause
+  // button click reaches the scene too — both go through the same
+  // 'game:pause-toggle' bridge event, so there's exactly one place
+  // (CombatScene.togglePause) that decides whether a toggle is actually
+  // honored (e.g. before the fight starts, or after it's already over).
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        bridgeRef.current?.toGame.emit('game:pause-toggle', undefined);
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   return (
     <div className="relative h-full w-full">
       <div ref={containerRef} className="h-full w-full" />
       <p className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 font-mono text-xs text-neutral-500">
         {engineReady ? 'engine: ready (bridge ok)' : 'engine: booting…'}
       </p>
+      {/* Hidden once the fight has resolved — CombatScene already refuses to
+       * pause a finished scene, so a visible Pause button there would just
+       * be a dead control. */}
+      {engineReady && !resolution && !paused && (
+        <button
+          type="button"
+          onClick={() => bridgeRef.current?.toGame.emit('game:pause-toggle', undefined)}
+          className="absolute top-3 right-3 rounded border border-neutral-700 bg-black/40 px-3 py-1 font-mono text-xs text-neutral-300 transition hover:bg-black/60"
+        >
+          Pause
+        </button>
+      )}
+      {paused && (
+        <PauseOverlay
+          onResume={() => bridgeRef.current?.toGame.emit('game:pause-toggle', undefined)}
+        />
+      )}
       {resolution && <ResolutionOverlay state={resolution} recap={recap} />}
+    </div>
+  );
+}
+
+function PauseOverlay({ onResume }: { onResume: () => void }) {
+  return (
+    <div className="absolute inset-0 flex items-center justify-center bg-black/80 font-mono text-neutral-100">
+      <div className="flex flex-col items-center gap-4 text-center">
+        <h2 className="text-2xl text-[#d4c9a8]">Paused</h2>
+        <button
+          type="button"
+          onClick={onResume}
+          className="rounded border border-amber-700 bg-transparent px-6 py-2 text-sm text-amber-300 transition hover:bg-amber-900/30"
+        >
+          Resume
+        </button>
+      </div>
     </div>
   );
 }
