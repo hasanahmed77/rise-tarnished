@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { PlayerBuild } from '@/game/bridge';
 import { createClient } from '@/lib/supabase/client';
+import { themeButtonColor } from './AuthButton';
 
 /** Mirrors spend_stat_point's v_cost_base/v_cost_step/v_hard_cap
  * (supabase/migrations/…_spend_stat_point.sql) — display only, never
@@ -200,7 +201,7 @@ export function CharacterSheet({ onBegin }: { onBegin: (build: PlayerBuild) => v
       <button
         type="button"
         onClick={() => onBegin(toBuild(stats))}
-        className="mt-2 rounded border border-amber-700 bg-transparent px-6 py-2 font-mono text-sm text-amber-300 transition hover:bg-amber-900/30"
+        className={`mt-2 rounded border px-6 py-2 font-mono text-sm ${themeButtonColor}`}
       >
         Begin the fight
       </button>

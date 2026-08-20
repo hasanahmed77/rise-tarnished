@@ -36,7 +36,7 @@ export function PlayShell() {
 
   return (
     <div className="relative h-full w-full">
-      {screen === 'menu' && <MainMenu onPlay={() => setScreen('sheet')} />}
+      {screen === 'menu' && <MainMenu onAction={() => setScreen('sheet')} />}
       {screen === 'sheet' && <CharacterSheet onBegin={beginFight} />}
       {screen === 'fight' && build && <GameCanvas build={build} settings={settings} />}
       <SettingsPanel onChange={setSettings} />

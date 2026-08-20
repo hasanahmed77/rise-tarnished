@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { loadSettings, saveSettings, type GameSettings } from '@/lib/settings';
+import { themeButtonColor } from './AuthButton';
 
 /**
  * The settings surface (#56) — deferred twice (#42's screenshake toggle,
@@ -51,7 +52,7 @@ export function SettingsPanel({ onChange }: { onChange: (settings: GameSettings)
         onClick={() => setOpen((o) => !o)}
         aria-label="Settings"
         aria-expanded={open}
-        className="flex h-9 w-9 items-center justify-center rounded border border-neutral-700 bg-neutral-950/80 text-neutral-300 transition hover:bg-neutral-800"
+        className={`flex h-9 w-9 items-center justify-center rounded border font-mono ${themeButtonColor}`}
       >
         ⚙
       </button>
