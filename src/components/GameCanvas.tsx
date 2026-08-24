@@ -43,11 +43,24 @@ type RecapState =
 // inside the container div. Communication is bridge-only.
 //
 // `build` is the player's real, persisted stat build (#12) — the caller
-// (the character sheet screen, PlayPage) reads it from player_stats before
+// (the character sheet screen, PlayShell) reads it from player_stats before
 // mounting this component, so it's ready the instant the engine asks for it
 // via 'fight:start'. One GameCanvas mount is one fight; a fresh build for
-// the next attempt means remounting (see PlayPage's "fight again" reload).
-export function GameCanvas({ build, settings }: { build: PlayerBuild; settings: GameSettings }) {
+// the next attempt means remounting via `onFightAgain` (below) — PlayShell
+// unmounts this component and mounts CharacterSheet in its place, rather
+// than this component reloading the whole page itself.
+export function GameCanvas({
+  build,
+  settings,
+  onFightAgain,
+}: {
+  build: PlayerBuild;
+  settings: GameSettings;
+  /** "Fight again" on the resolution screen — PlayShell's job to decide
+   * where that goes (CharacterSheet, so a real win's runes are spendable
+   * immediately, not a second click through MainMenu first). */
+  onFightAgain: () => void;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [engineReady, setEngineReady] = useState(false);
   const [resolution, setResolution] = useState<ResolutionState | null>(null);
@@ -231,7 +244,9 @@ export function GameCanvas({ build, settings }: { build: PlayerBuild; settings: 
           />
         </div>
       )}
-      {resolution && <ResolutionOverlay state={resolution} recap={recap} />}
+      {resolution && (
+        <ResolutionOverlay state={resolution} recap={recap} onFightAgain={onFightAgain} />
+      )}
     </div>
   );
 }
@@ -375,7 +390,15 @@ function isResolveAttemptRow(
   );
 }
 
-function ResolutionOverlay({ state, recap }: { state: ResolutionState; recap: RecapState }) {
+function ResolutionOverlay({
+  state,
+  recap,
+  onFightAgain,
+}: {
+  state: ResolutionState;
+  recap: RecapState;
+  onFightAgain: () => void;
+}) {
   const victory = state.outcome.result === 'victory';
   return (
     <div className="absolute inset-0 flex items-center justify-center bg-black/70 font-mono text-neutral-100">
@@ -419,7 +442,7 @@ function ResolutionOverlay({ state, recap }: { state: ResolutionState; recap: Re
         )}
         <button
           type="button"
-          onClick={() => window.location.reload()}
+          onClick={onFightAgain}
           className="mt-2 rounded border border-[#6b5f52] bg-transparent px-4 py-1.5 font-mono text-sm text-[#d4c9a8] transition hover:bg-[#2a2a2a]"
         >
           Fight again
