@@ -6,6 +6,8 @@ A 2D souls-like **boss-rush** for the browser, built as a CSE327 (Software
 Engineering) course project. No filler, no exploration — just bosses, and an
 AI that refuses to let you win the same way twice.
 
+🎥 [Gameplay demo](docs/rise-tarnished-gameplay.mp4)
+
 ## The pitch
 
 Bosses run a three-layer hierarchical finite state machine (phase → tactic →
