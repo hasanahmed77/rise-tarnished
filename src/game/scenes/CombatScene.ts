@@ -33,15 +33,14 @@ import {
   type BossCombatState,
   type BossStepContext,
 } from '../boss/bossCombat';
-import { applyWeightOverrides, margitWeightRules } from '../boss/weighting';
+import { applyWeightOverrides } from '../boss/weighting';
 import {
   MAX_LOGGED_DECISIONS,
   type DecisionEvent,
   type DecisionLayer,
   type SignalContribution,
 } from '../boss/decisionLog';
-import { margitMoves, margitTopLevelMoveIds } from '../boss/margitMoves';
-import { BOSS_BASE_MAX_HP, MARGIT_BOSS_ID, MARGIT_RUNE_REWARD } from '../boss/bossTuning';
+import { margitDefinition } from '../boss/bossDefinition';
 import {
   BOSS_SPRITE_H,
   BOSS_SPRITE_W,
@@ -384,8 +383,8 @@ export class CombatScene extends Phaser.Scene {
     console.log(`[combat] Margit seed: ${seed}`);
     this.boss = createBossState(this.scale.width * BOSS_START_X_RATIO, seed);
     this.bossCtx = {
-      table: margitMoves,
-      topLevelIds: margitTopLevelMoveIds,
+      table: margitDefinition.moves,
+      topLevelIds: margitDefinition.topLevelMoveIds,
       playerX: this.sim.x,
       minX: ARENA_MARGIN,
       maxX: this.scale.width - ARENA_MARGIN,
@@ -394,7 +393,10 @@ export class CombatScene extends Phaser.Scene {
       // defaults. `applyWeightOverrides` is a no-op merge when
       // `weightOverrides` is absent/empty, so this is the same array as
       // before #64 for every player on their first attempt against a boss.
-      weightRules: applyWeightOverrides(margitWeightRules, weightOverrides?.weightRuleGains ?? {}),
+      weightRules: applyWeightOverrides(
+        margitDefinition.weightRules,
+        weightOverrides?.weightRuleGains ?? {},
+      ),
       tacticBaseScoreOverrides: weightOverrides?.tacticBaseScore,
       observed: {
         playerBlocking: false,
@@ -692,10 +694,10 @@ export class CombatScene extends Phaser.Scene {
 
     this.bridge?.toShell.emit('fight:outcome', {
       attemptId: this.attemptId,
-      bossId: MARGIT_BOSS_ID,
+      bossId: margitDefinition.id,
       result,
       durationTicks: this.tickCount,
-      estimatedRuneDelta: computeRuneReward(result, MARGIT_RUNE_REWARD),
+      estimatedRuneDelta: computeRuneReward(result, margitDefinition.runeReward),
       decisionLog: this.decisionLog,
     });
   }
@@ -720,7 +722,9 @@ export class CombatScene extends Phaser.Scene {
     const dmg = ATTACK_DAMAGE[attackId];
     // Punishing a move's recovery risks extra posture damage — the move
     // declares how much via postureSelfRisk (BOSS_AI.md §4).
-    const currentMove = this.boss.action ? margitMoves[this.boss.action.moveId] : undefined;
+    const currentMove = this.boss.action
+      ? margitDefinition.moves[this.boss.action.moveId]
+      : undefined;
     const punishBonus =
       this.boss.action?.phase === 'recovery' && currentMove ? currentMove.postureSelfRisk : 0;
 
@@ -1075,7 +1079,7 @@ export class CombatScene extends Phaser.Scene {
       this.bossRect.clearTint();
     }
 
-    this.bossHpBar.width = HUD_BAR_WIDTH * Math.max(0, b.hp / BOSS_BASE_MAX_HP);
+    this.bossHpBar.width = HUD_BAR_WIDTH * Math.max(0, b.hp / margitDefinition.baseMaxHp);
     this.bossPostureBar.width = HUD_BAR_WIDTH * (b.posture.value / POSTURE_MAX);
 
     const mode = collapsed
