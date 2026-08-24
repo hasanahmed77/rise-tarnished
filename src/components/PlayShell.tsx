@@ -11,11 +11,21 @@ import { SettingsPanel } from './SettingsPanel';
 
 type Screen = 'menu' | 'sheet' | 'fight';
 
-/** Menu → CharacterSheet → GameCanvas, in that order, always. Previously
- * this went straight to CharacterSheet, which itself auto-skips to the
- * fight when nothing's affordable — so a returning player could land in
- * combat with no menu at all. MainMenu is a real gate now: nothing after it
- * mounts until "Play" is clicked, so its stats display is always seen.
+/** Menu → CharacterSheet → GameCanvas, in that order, on the very first
+ * entry. Previously PlayShell went straight to CharacterSheet, which itself
+ * auto-skips to the fight when nothing's affordable — so a returning player
+ * could land in combat with no menu at all. MainMenu is a real gate now:
+ * nothing after it mounts until "Play" is clicked, so its stats display is
+ * always seen.
+ *
+ * "Fight again" on the resolution screen goes straight back to
+ * CharacterSheet, not through MainMenu again — a player who just won has
+ * fresh runes to spend, and the natural next step is spending them, not
+ * re-seeing the landing screen and its stats a second time. This used to be
+ * `window.location.reload()` inside GameCanvas itself, which reset the
+ * whole page (SettingsPanel included) for no reason a plain screen change
+ * doesn't already give: React state here already fully owns which of these
+ * three components is mounted.
  *
  * SettingsPanel (#56) renders here, not inside any one screen, and stays
  * mounted across all three states below — same reasoning as before: it's
@@ -38,7 +48,9 @@ export function PlayShell() {
     <div className="relative h-full w-full">
       {screen === 'menu' && <MainMenu onAction={() => setScreen('sheet')} />}
       {screen === 'sheet' && <CharacterSheet onBegin={beginFight} />}
-      {screen === 'fight' && build && <GameCanvas build={build} settings={settings} />}
+      {screen === 'fight' && build && (
+        <GameCanvas build={build} settings={settings} onFightAgain={() => setScreen('sheet')} />
+      )}
       <SettingsPanel onChange={setSettings} />
     </div>
   );
