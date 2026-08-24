@@ -166,7 +166,26 @@ const SFX = {
       ),
       0.72,
     ),
-
+  // Parry: A piercing metallic ring mixed with a heavy bass thud to reward perfect timing.
+  parry: () =>
+    normalize(
+      reverb(
+        mix(
+          // The heavy bass drop you feel when the weapons clash
+          thud({ seconds: 0.6, f0: 300, f1: 40, seed: 91, power: 4 }),
+          
+          // The sharp snap of the weapons meeting
+          whoosh({ seconds: 0.15, lowHz: 1200, highHz: 6000, seed: 92, power: 2 }),
+          
+          // The high-pitched, ringing metal tone that lasts a bit longer
+          gain(metallic({ seconds: 0.9, partials: [2800, 4200, 6800, 8500], seed: 93, power: 2 }), 0.8)
+        ),
+        SFX_RATE,
+        { time: 0.12, feedback: 0.45, wet: 0.35 }
+      ),
+      0.95 // Very loud and punchy
+    ),
+  
   // Dodge: cloth and effort, heavily muffled. Should never compete with a hit.
   dodge: () =>
     normalize(whoosh({ seconds: 0.26, lowHz: 120, highHz: 1100, seed: 51, power: 3 }), 0.4),
